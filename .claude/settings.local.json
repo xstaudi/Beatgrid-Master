@@ -5,7 +5,8 @@
       "WebSearch",
       "mcp__plugin_serena_serena__read_file",
       "mcp__plugin_serena_serena__list_dir",
-      "Bash(head:*)"
+      "Bash(head:*)",
+      "Bash(cd /c/Users/staud/.cursor/projects/Beatgrid-Master-real && npx tsc --noEmit 2>&1)"
     ]
   },
   "enableAllProjectMcpServers": true,

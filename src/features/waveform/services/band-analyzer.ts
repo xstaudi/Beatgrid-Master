@@ -143,17 +143,14 @@ export function computeBandData(
     frameHigh[f] = Math.sqrt(highEnergy)
   }
 
-  // Downsample frames to bucketCount buckets
+  // Downsample frames to bucketCount buckets (two-pass: raw averages, then normalize)
   const buckets: WaveformBandBucket[] = new Array(bucketCount)
   const framesPerBucket = totalFrames / bucketCount
 
-  // Find global max for normalization
-  let globalMaxEnergy = 0
-  for (let f = 0; f < totalFrames; f++) {
-    const total = frameLow[f] + frameMid[f] + frameHigh[f]
-    if (total > globalMaxEnergy) globalMaxEnergy = total
-  }
-  if (globalMaxEnergy === 0) globalMaxEnergy = 1
+  // Pass 1: Compute raw band averages per bucket
+  const rawLow = new Float64Array(bucketCount)
+  const rawMid = new Float64Array(bucketCount)
+  const rawHigh = new Float64Array(bucketCount)
 
   for (let b = 0; b < bucketCount; b++) {
     const startFrame = Math.floor(b * framesPerBucket)
@@ -177,17 +174,29 @@ export function computeBandData(
       highSum /= count
     }
 
-    // Normalize band energies so dominant band = 1
-    const maxBand = Math.max(lowSum, midSum, highSum)
-    const norm = maxBand > 0 ? 1 / maxBand : 0
+    rawLow[b] = lowSum
+    rawMid[b] = midSum
+    rawHigh[b] = highSum
 
     buckets[b] = {
       min: minVal === Infinity ? 0 : minVal,
       max: maxVal === -Infinity ? 0 : maxVal,
-      low: lowSum * norm,
-      mid: midSum * norm,
-      high: highSum * norm,
+      low: 0, mid: 0, high: 0,
     }
+  }
+
+  // Pass 2: Independent per-band normalization (each band peaks at 1.0)
+  let maxLow = 0, maxMid = 0, maxHigh = 0
+  for (let b = 0; b < bucketCount; b++) {
+    if (rawLow[b] > maxLow) maxLow = rawLow[b]
+    if (rawMid[b] > maxMid) maxMid = rawMid[b]
+    if (rawHigh[b] > maxHigh) maxHigh = rawHigh[b]
+  }
+
+  for (let b = 0; b < bucketCount; b++) {
+    buckets[b].low = maxLow > 0 ? rawLow[b] / maxLow : 0
+    buckets[b].mid = maxMid > 0 ? rawMid[b] / maxMid : 0
+    buckets[b].high = maxHigh > 0 ? rawHigh[b] / maxHigh : 0
   }
 
   return { buckets, sampleRate, duration }

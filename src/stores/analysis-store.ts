@@ -144,16 +144,14 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
     if (config.checks.includes('beatgrid')) {
       existingResults.push(checkBeatgridLibrary(tracks, rawBeatResults))
 
-      // Beatgrids generieren fuer Tracks ohne existierende TempoMarker
+      // Beatgrids generieren fuer alle Tracks (Vergleich gespeichert vs. erkannt)
       const newGeneratedBeatgrids = new Map<string, GeneratedBeatgrid>()
       for (const track of tracks) {
-        if (track.tempoMarkers.length === 0) {
-          const rawBeat = rawBeatResults.get(track.id)
-          if (!rawBeat) continue
-          const generated = generateBeatgrid(rawBeat, [])
-          if (generated.method !== 'skipped') {
-            newGeneratedBeatgrids.set(track.id, generated)
-          }
+        const rawBeat = rawBeatResults.get(track.id)
+        if (!rawBeat) continue
+        const generated = generateBeatgrid(rawBeat, track.tempoMarkers)
+        if (generated.method !== 'skipped') {
+          newGeneratedBeatgrids.set(track.id, generated)
         }
       }
       set({ generatedBeatgrids: newGeneratedBeatgrids })

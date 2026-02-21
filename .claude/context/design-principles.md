@@ -155,6 +155,27 @@ NIEMALS `box-shadow` mit schwarzen Schatten. Stattdessen:
 
 ---
 
+## Waveform (CDJ-3000 3-Band Style)
+
+Waveforms nutzen die Pioneer CDJ-3000 Farbkodierung fuer Frequenzbaender.
+Canvas-Rendering mit hardcoded RGB-Werten (Canvas kann keine CSS Custom Properties lesen).
+
+| Band | Hex | RGB | Verwendung |
+|------|-----|-----|------------|
+| **Low (Bass)** | `#E4961E` | `228, 150, 30` | Amber-Orange, dominiert bei Bass-lastigen Passagen |
+| **Mid** | `#E6E2D8` | `230, 226, 216` | Warm White, Vocals/Instrumente |
+| **High (Treble)** | `#4B8CCA` | `75, 140, 202` | CDJ Blue, HiHats/Cymbals/Synths |
+
+### Waveform-Regeln
+
+- Farbe entsteht durch gewichtete Mischung der drei Baender pro Sample-Bucket
+- Gespielter Bereich: `alpha 1.0`, ungespielter Bereich: `alpha 0.7`
+- Fallback (ohne Banddaten): Amber-Orange `rgba(228, 150, 30, 0.5)`
+- Hintergrund: `#1d1511` (Card Background)
+- NIEMALS Kupfer-Palette fuer Waveform-Baender verwenden — CDJ-3000 Farben sind Pflicht
+
+---
+
 ## Accessibility (WCAG 2.1 AA)
 
 | Anforderung | Wert |

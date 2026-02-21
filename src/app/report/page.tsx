@@ -13,6 +13,7 @@ import { ExportStep } from '@/components/report/steps/ExportStep'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { classifyTracks } from '@/features/analyze/services/classify-tracks'
+import { useAutoEnrichment } from '@/features/enrichment/hooks/useAutoEnrichment'
 
 export default function ReportPage() {
   const results = useAnalysisStore((s) => s.results)
@@ -21,6 +22,7 @@ export default function ReportPage() {
   const { rows, activeChecks } = useUnifiedTrackData()
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null)
   const [activeStep, setActiveStep] = useState('overview')
+  useAutoEnrichment()
 
   if (!results || results.results.length === 0) {
     return (

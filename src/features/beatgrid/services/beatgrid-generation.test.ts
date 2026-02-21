@@ -75,7 +75,7 @@ describe('generateBeatgrid', () => {
     expect(result.skipReason).toBe('too-few-beats')
   })
 
-  it('skippt bei existierenden TempoMarkern', () => {
+  it('generiert auch bei existierenden TempoMarkern (fuer Vergleich)', () => {
     const beats = generateEvenBeats(128, 300, 0.1)
     const rawBeat = makeRawBeat({ beatTimestamps: beats })
     const existingMarkers: TempoMarker[] = [
@@ -84,8 +84,8 @@ describe('generateBeatgrid', () => {
 
     const result = generateBeatgrid(rawBeat, existingMarkers)
 
-    expect(result.method).toBe('skipped')
-    expect(result.skipReason).toBe('has-existing-grid')
+    expect(result.method).toBe('static')
+    expect(result.skipReason).toBeUndefined()
   })
 
   it('Half/Double Guard: 64 BPM detected vs. 128 estimate', () => {

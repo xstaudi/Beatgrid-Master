@@ -12,6 +12,7 @@ export { writeTagsToFile, writeTagsBatch, hasFileSystemAccess } from './services
 // Hooks
 export { useEnrichment } from './hooks/useEnrichment'
 export { useEnrichmentBatch } from './hooks/useEnrichmentBatch'
+export { useAutoEnrichment } from './hooks/useAutoEnrichment'
 export { useTagWriter } from './hooks/useTagWriter'
 
 // Constants
@@ -26,6 +27,5 @@ export {
 // Components
 export { EnrichmentStatusBadge } from './components/EnrichmentStatusBadge'
 export { EnrichmentSuggestionRow } from './components/EnrichmentSuggestionRow'
-export { EnrichmentPanel } from './components/EnrichmentPanel'
 export { BatchEnrichmentDialog } from './components/BatchEnrichmentDialog'
 export { WriteBackConfirmDialog } from './components/WriteBackConfirmDialog'

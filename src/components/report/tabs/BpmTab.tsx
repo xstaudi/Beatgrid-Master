@@ -1,25 +1,23 @@
 import { SeverityBadge } from '../SeverityBadge'
 import { InfoItem } from './InfoItem'
+import { FixActionBar } from '../FixActionBar'
 import type { TrackBpmResult } from '@/types/analysis'
 
 interface BpmTabProps {
   result: TrackBpmResult
+  trackId?: string
 }
 
-export function BpmTab({ result }: BpmTabProps) {
+export function BpmTab({ result, trackId }: BpmTabProps) {
   if (result.skipReason) {
     return <p className="text-sm text-muted-foreground">Skipped: {result.skipReason}</p>
   }
 
   return (
     <div className="space-y-4 pr-4">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <InfoItem label="Stored BPM" value={result.storedBpm?.toFixed(2) ?? 'N/A'} />
-        <InfoItem label="Detected BPM" value={result.detectedBpm?.toFixed(2) ?? 'N/A'} />
-        <InfoItem
-          label="Delta"
-          value={result.bpmDelta != null ? `${result.bpmDelta > 0 ? '+' : ''}${result.bpmDelta.toFixed(2)}` : 'N/A'}
-        />
+        <InfoItem label="Detected BPM" value={result.detectedBpm != null ? String(result.detectedBpm) : 'N/A'} />
         <InfoItem label="Variance" value={`${result.bpmVariancePercent.toFixed(1)}%`} />
       </div>
       {result.halfDoubleAdjusted && (
@@ -42,6 +40,9 @@ export function BpmTab({ result }: BpmTabProps) {
             ))}
           </div>
         </div>
+      )}
+      {trackId && result.overallSeverity === 'error' && !result.isVariableBpm && (
+        <FixActionBar trackId={trackId} fixKind="bpm" />
       )}
     </div>
   )

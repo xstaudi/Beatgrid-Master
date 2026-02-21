@@ -1,6 +1,10 @@
+'use client'
+
+import { useState } from 'react'
 import { SeverityBadge } from '../SeverityBadge'
 import { InfoItem } from './InfoItem'
 import { BeatgridEditor } from '@/features/beatgrid/components/BeatgridEditor'
+import { WaveformPlayer } from '@/features/waveform'
 import type { TrackBeatgridResult } from '@/types/analysis'
 import type { PcmData } from '@/types/audio'
 import type { AudioFileHandle } from '@/lib/audio/file-access'
@@ -19,6 +23,14 @@ interface BeatgridTabProps {
   rawBeatTimestamps?: number[]
 }
 
+function WaveformLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
+      {children}
+    </p>
+  )
+}
+
 export function BeatgridTab({
   result,
   pcmData,
@@ -29,6 +41,8 @@ export function BeatgridTab({
   generatedGrid,
   rawBeatTimestamps,
 }: BeatgridTabProps) {
+  const [syncView, setSyncView] = useState<{ start: number; end: number } | null>(null)
+
   if (result.skipReason) {
     const skipLabels: Record<string, string> = {
       'no-pcm': 'Keine Audiodaten verfuegbar',
@@ -43,19 +57,23 @@ export function BeatgridTab({
     )
   }
 
-  // GENERIERUNGS-Modus: Tracks ohne Grid, mit generiertem Beatgrid
-  if (generatedGrid && generatedGrid.method !== 'skipped' && pcmData) {
+  const hasStoredGrid = tempoMarkers.length > 0
+  const hasGeneratedGrid = generatedGrid != null && generatedGrid.method !== 'skipped' && pcmData != null
+
+  // Case 1: Kein gespeichertes Grid → nur BeatgridEditor (muss freigegeben werden)
+  if (!hasStoredGrid && hasGeneratedGrid) {
     return (
       <div className="space-y-4 pr-4">
+        <WaveformLabel>Erkannte Beats</WaveformLabel>
         <BeatgridEditor
           trackId={trackId}
-          pcmData={pcmData}
+          pcmData={pcmData!}
           audioFileHandle={audioFileHandle}
-          generatedGrid={generatedGrid}
+          generatedGrid={generatedGrid!}
           beatTimestamps={rawBeatTimestamps ?? []}
           duration={duration}
         />
-        {generatedGrid.isVariableBpm && (
+        {generatedGrid!.isVariableBpm && (
           <div className="flex items-center gap-2">
             <SeverityBadge severity="warning" />
             <span className="text-sm">Variable BPM detected</span>
@@ -65,9 +83,54 @@ export function BeatgridTab({
     )
   }
 
-  // VERIFIKATIONS-Modus: Nur Info-Items (Waveform + DriftGraph im Modal linke Spalte)
+  // Case 2: Gespeichertes Grid + verbessertes generiertes Grid → beide zeigen
+  if (hasStoredGrid && hasGeneratedGrid) {
+    return (
+      <div className="space-y-4 pr-4">
+        <div>
+          <WaveformLabel>Gespeichertes Grid (Referenz)</WaveformLabel>
+          <WaveformPlayer
+            pcmData={pcmData}
+            audioFileHandle={audioFileHandle}
+            duration={duration}
+            tempoMarkers={tempoMarkers}
+            zoomEnabled
+            onViewChange={(vs, ve) => setSyncView({ start: vs, end: ve })}
+          />
+        </div>
+        <div>
+          <WaveformLabel>Verbesserter Beatgrid</WaveformLabel>
+          <BeatgridEditor
+            trackId={trackId}
+            pcmData={pcmData!}
+            audioFileHandle={audioFileHandle}
+            generatedGrid={generatedGrid!}
+            beatTimestamps={rawBeatTimestamps ?? []}
+            duration={duration}
+          />
+        </div>
+        {generatedGrid!.isVariableBpm && (
+          <div className="flex items-center gap-2">
+            <SeverityBadge severity="warning" />
+            <span className="text-sm">Variable BPM detected</span>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Case 3: Nur gespeichertes Grid, keine Verbesserung → Waveform + Drift-Stats
   return (
     <div className="space-y-4 pr-4">
+      <WaveformPlayer
+        pcmData={pcmData}
+        audioFileHandle={audioFileHandle}
+        duration={duration}
+        tempoMarkers={tempoMarkers}
+        beatDriftPoints={result.driftPoints}
+        zoomEnabled
+        onViewChange={(vs, ve) => setSyncView({ start: vs, end: ve })}
+      />
       <div className="grid grid-cols-2 gap-3">
         <InfoItem label="Avg Drift" value={`${result.avgDriftMs.toFixed(1)}ms`} />
         <InfoItem label="Max Drift" value={`${result.maxDriftMs.toFixed(1)}ms`} />

@@ -101,8 +101,8 @@ export function useWaveformZoom(
           e.preventDefault()
           const onMove = (mv: MouseEvent) => {
             const mx = mv.clientX - rect.left
-            const newSec = visStart + (mx / rect.width) * visDuration
-            config.onDrag(Math.max(0, Math.min(duration, newSec)))
+            const newSec = Math.max(0, Math.min(duration, visStart + (mx / rect.width) * visDuration))
+            config.onDrag(newSec)
           }
           const onUp = () => {
             document.removeEventListener('mousemove', onMove)

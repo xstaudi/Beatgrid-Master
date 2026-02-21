@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { RotateCcw, Check } from 'lucide-react'
+import { RotateCcw, Check, SkipForward } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { WaveformPlayer } from '@/features/waveform'
 import { useBeatgridEditor } from '../hooks/useBeatgridEditor'
@@ -36,6 +36,7 @@ export function BeatgridEditor({
     setPhaseOffset,
     resetToDetected,
     confirmEdit,
+    skipEdit,
     isModified,
   } = useBeatgridEditor(trackId, generatedGrid, beatTimestamps)
 
@@ -46,21 +47,27 @@ export function BeatgridEditor({
   }, [])
 
   const handlePhaseMarkerDrag = useCallback((sec: number) => {
-    const snapped = setPhaseOffset(sec)
-    onPhaseOffsetChange?.(snapped)
+    const value = setPhaseOffset(sec)
+    onPhaseOffsetChange?.(value)
   }, [setPhaseOffset, onPhaseOffsetChange])
 
   const shiftGrid = useCallback((beats: number) => {
     const interval = 60 / bpm
     const raw = phaseOffset + beats * interval
-    const snapped = setPhaseOffset(Math.max(0, Math.min(duration, raw)))
-    onPhaseOffsetChange?.(snapped)
+    const value = setPhaseOffset(Math.max(0, Math.min(duration, raw)))
+    onPhaseOffsetChange?.(value)
   }, [bpm, phaseOffset, setPhaseOffset, duration, onPhaseOffsetChange])
 
   const handleSetDownbeat = useCallback(() => {
-    const snapped = setPhaseOffset(viewCenter)
-    onPhaseOffsetChange?.(snapped)
-  }, [viewCenter, setPhaseOffset, onPhaseOffsetChange])
+    // Naechsten roten Downbeat (4/4 Takt) zur Waveform-Mitte verschieben
+    const barInterval = (60 / bpm) * 4
+    const n = Math.round((viewCenter - phaseOffset) / barInterval)
+    const nearestDownbeat = phaseOffset + n * barInterval
+    const delta = viewCenter - nearestDownbeat
+    const newOffset = Math.max(0, Math.min(duration, phaseOffset + delta))
+    const value = setPhaseOffset(newOffset)
+    onPhaseOffsetChange?.(value)
+  }, [viewCenter, phaseOffset, bpm, duration, setPhaseOffset, onPhaseOffsetChange])
 
   // Keyboard: Arrow-Keys verschieben Beat-1 fein
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -69,8 +76,8 @@ export function BeatgridEditor({
     if (e.key === 'ArrowLeft') { e.preventDefault(); newOffset = Math.max(0, phaseOffset - step) }
     if (e.key === 'ArrowRight') { e.preventDefault(); newOffset = Math.min(duration, phaseOffset + step) }
     if (newOffset !== null) {
-      const snapped = setPhaseOffset(newOffset)
-      onPhaseOffsetChange?.(snapped)
+      const value = setPhaseOffset(newOffset)
+      onPhaseOffsetChange?.(value)
     }
   }, [phaseOffset, duration, setPhaseOffset, onPhaseOffsetChange])
 
@@ -133,7 +140,7 @@ export function BeatgridEditor({
         </div>
       </div>
 
-      {/* Reset / Bestätigen */}
+      {/* Reset / Bestätigen / Überspringen */}
       <div className="flex items-center justify-end gap-2">
         {isModified && (
           <Button variant="ghost" size="sm" onClick={resetToDetected}>
@@ -141,6 +148,10 @@ export function BeatgridEditor({
             Reset
           </Button>
         )}
+        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" onClick={skipEdit}>
+          <SkipForward className="h-3.5 w-3.5 mr-1" />
+          Ueberspringen
+        </Button>
         <Button size="sm" onClick={confirmEdit}>
           <Check className="h-3.5 w-3.5 mr-1" />
           Uebernehmen

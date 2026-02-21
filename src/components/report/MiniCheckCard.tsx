@@ -1,5 +1,4 @@
 import { Card, CardContent } from '@/components/ui/card'
-import { SeverityBadge } from './SeverityBadge'
 import type { CheckId } from '@/types/analysis'
 import { CHECK_LABELS, scoreColor } from '@/features/report'
 
@@ -18,9 +17,6 @@ export function MiniCheckCard({
   icon,
   primaryMetric,
   primaryLabel,
-  tracksOk,
-  tracksWarning,
-  tracksError,
 }: MiniCheckCardProps) {
   return (
     <Card className="py-3">
@@ -36,11 +32,6 @@ export function MiniCheckCard({
             {primaryMetric}
           </p>
           <p className="text-xs text-muted-foreground">{primaryLabel}</p>
-        </div>
-        <div className="flex shrink-0 flex-col gap-1">
-          {tracksOk > 0 && <SeverityBadge severity="ok" count={tracksOk} />}
-          {tracksWarning > 0 && <SeverityBadge severity="warning" count={tracksWarning} />}
-          {tracksError > 0 && <SeverityBadge severity="error" count={tracksError} />}
         </div>
       </CardContent>
     </Card>

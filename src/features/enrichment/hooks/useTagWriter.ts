@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import type { Tag } from 'taglib-wasm'
 import { writeTagsToFile, hasFileSystemAccess } from '../services/tag-writer'
 import { useEnrichmentStore } from '@/stores/enrichment-store'
 import type { WriteBackResult, FieldSuggestion } from '@/types/enrichment'
@@ -85,11 +86,11 @@ export function useTagWriter(): UseTagWriterReturn {
 
 /**
  * Konvertiere FieldSuggestions in das Tag-Format fuer taglib-wasm.
+ * Nur Basis-Felder (title, artist, album, genre, year, comment) werden unterstuetzt.
+ * Erweiterte Felder (composer, label, isrc) erfordern die Full API.
  */
-function suggestionsToTags(
-  suggestions: FieldSuggestion[],
-): Record<string, string | number> {
-  const tags: Record<string, string | number> = {}
+function suggestionsToTags(suggestions: FieldSuggestion[]): Partial<Tag> {
+  const tags: Partial<Tag> = {}
 
   for (const s of suggestions) {
     switch (s.field) {
@@ -108,15 +109,7 @@ function suggestionsToTags(
       case 'year':
         tags.year = parseInt(s.value, 10) || 0
         break
-      case 'label':
-        tags.label = s.value
-        break
-      case 'composer':
-        tags.composer = s.value
-        break
-      case 'isrc':
-        tags.isrc = s.value
-        break
+      // composer, label, isrc: nicht in Partial<Tag> (Simple API)
     }
   }
 

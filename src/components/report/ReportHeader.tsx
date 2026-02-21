@@ -1,8 +1,6 @@
 'use client'
 
 import { LibraryHealthBar } from './LibraryHealthBar'
-import { Badge } from '@/components/ui/badge'
-import { CheckCircle2, Sparkles } from 'lucide-react'
 import type { HealthScoreResult } from '@/features/report'
 
 interface ReportHeaderProps {
@@ -17,10 +15,7 @@ export function ReportHeader({
   healthScore,
   trackCount,
   completedAt,
-  verifyCount,
-  freshCount,
 }: ReportHeaderProps) {
-  // Nutze den ersten Check als Referenz fuer Track-Zaehler
   const firstCheck = healthScore.checks[0]
   const tracksOk = firstCheck?.tracksOk ?? 0
   const tracksTotal = firstCheck?.tracksTotal ?? trackCount
@@ -44,25 +39,6 @@ export function ReportHeader({
         tracksWithWarnings={tracksWithIssues}
         tracksWithErrors={0}
       />
-
-      {(verifyCount > 0 || freshCount > 0) && (
-        <div className="flex flex-wrap gap-3">
-          {verifyCount > 0 && (
-            <div className="flex items-center gap-2 border border-primary/20 px-3 py-1.5 text-sm">
-              <CheckCircle2 className="size-4 text-chart-2" />
-              <strong>{verifyCount}</strong> verifiziert
-              <Badge variant="secondary" className="text-xs">Verify</Badge>
-            </div>
-          )}
-          {freshCount > 0 && (
-            <div className="flex items-center gap-2 border border-primary/20 px-3 py-1.5 text-sm">
-              <Sparkles className="size-4 text-primary" />
-              <strong>{freshCount}</strong> neu analysiert
-              <Badge variant="secondary" className="text-xs">Fresh</Badge>
-            </div>
-          )}
-        </div>
-      )}
     </header>
   )
 }

@@ -8,7 +8,7 @@ import { FixToolbar } from '@/features/autofix/components/FixToolbar'
 import { FixPreviewPanel } from '@/features/autofix/components/FixPreviewPanel'
 import { DuplicateResolutionCard } from '@/features/autofix/components/DuplicateResolutionCard'
 import { Button } from '@/components/ui/button'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Info } from 'lucide-react'
 
 interface FixesStepProps {
   onNext: () => void
@@ -29,6 +29,10 @@ export function FixesStep({ onNext }: FixesStepProps) {
   }, [tracks, results, generatedBeatgrids, computeAndSetFixes])
 
   const hasFixes = fixes.length > 0 || keptDuplicates.size > 0
+  const pendingCount = fixes.filter((f) => f.status === 'pending').length
+  const pendingTrackCount = new Set(
+    fixes.filter((f) => f.status === 'pending').map((f) => f.operation.trackId),
+  ).size
 
   if (!hasFixes) {
     return (
@@ -47,6 +51,14 @@ export function FixesStep({ onNext }: FixesStepProps) {
       <h2 className="art-deco-heading text-lg">
         <span className="art-deco-divider">Auto-Fix</span>
       </h2>
+      {pendingCount > 0 && (
+        <div className="flex items-start gap-2 border border-primary/30 bg-primary/5 px-3 py-2.5 text-sm">
+          <Info className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+          <span className="text-muted-foreground">
+            <span className="text-foreground font-medium">{pendingTrackCount} {pendingTrackCount === 1 ? 'Track hat' : 'Tracks haben'}</span> noch ausstehende Fixes — im Track-Detail bestaetigen.
+          </span>
+        </div>
+      )}
       <FixToolbar />
       <FixPreviewPanel />
       <DuplicateResolutionCard />

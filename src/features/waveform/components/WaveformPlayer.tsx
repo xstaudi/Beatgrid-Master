@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useCallback, useState } from 'react'
+import { useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react'
 import { Play, Pause } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAudioPlayback } from '../hooks/useAudioPlayback'
@@ -28,6 +28,8 @@ interface WaveformPlayerProps {
   showCenterLine?: boolean
   onPhaseMarkerDrag?: (sec: number) => void
   onViewChange?: (viewStart: number, viewEnd: number) => void
+  controlledViewStart?: number
+  controlledViewEnd?: number
 }
 
 function formatTime(seconds: number): string {
@@ -51,6 +53,8 @@ export function WaveformPlayer({
   showCenterLine,
   onPhaseMarkerDrag,
   onViewChange,
+  controlledViewStart,
+  controlledViewEnd,
 }: WaveformPlayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -76,8 +80,8 @@ export function WaveformPlayer({
     useWaveformZoom(effectiveDuration, canvasRef, phaseMarkerConfig)
 
   const effectiveZoom = zoomEnabled ? zoomLevel : 1
-  const effectiveViewStart = zoomEnabled ? viewStart : 0
-  const effectiveViewEnd = zoomEnabled ? viewEnd : effectiveDuration
+  const effectiveViewStart = controlledViewStart ?? (zoomEnabled ? viewStart : 0)
+  const effectiveViewEnd = controlledViewEnd ?? (zoomEnabled ? viewEnd : effectiveDuration)
 
   // --- Fallback-Buckets cachen (nur bei pcmData-Wechsel, nicht jedes Frame) ---
   useEffect(() => {
@@ -199,7 +203,7 @@ export function WaveformPlayer({
     effectiveViewStart, effectiveViewEnd, phaseMarkerPosition, showCenterLine])
 
   // Render loop
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isPlaying) {
       const loop = () => {
         render()
@@ -212,7 +216,7 @@ export function WaveformPlayer({
   }, [isPlaying, render])
 
   // ResizeObserver
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = containerRef.current
     if (!container) return
     const observer = new ResizeObserver(render)

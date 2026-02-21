@@ -105,7 +105,7 @@ export function PlaylistSelector({
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
           Filter by Playlist
         </p>
-        <ScrollArea className="max-h-64 overflow-hidden">
+        <ScrollArea className="h-64">
           <div className="space-y-0.5">
             <button
               onClick={() => onChange(null)}

@@ -32,7 +32,7 @@ export function compareKey(track: Track, rawKey: RawKeyResult | null): TrackKeyR
       libraryKey: track.key,
       detectedCamelot,
       detectedOpenKey,
-      confidence: rawKey.confidence,
+      confidence: rawKey.confidence * 100,
       match: 'no-library-key',
     }
   }
@@ -45,7 +45,7 @@ export function compareKey(track: Track, rawKey: RawKeyResult | null): TrackKeyR
       libraryKey: track.key,
       detectedCamelot,
       detectedOpenKey,
-      confidence: rawKey.confidence,
+      confidence: rawKey.confidence * 100,
       match: 'no-detection',
     }
   }
@@ -59,7 +59,7 @@ export function compareKey(track: Track, rawKey: RawKeyResult | null): TrackKeyR
       libraryKey: track.key,
       detectedCamelot,
       detectedOpenKey,
-      confidence: rawKey.confidence,
+      confidence: rawKey.confidence * 100,
       match: 'match',
     }
   }
@@ -74,7 +74,7 @@ export function compareKey(track: Track, rawKey: RawKeyResult | null): TrackKeyR
       libraryKey: track.key,
       detectedCamelot,
       detectedOpenKey,
-      confidence: rawKey.confidence,
+      confidence: rawKey.confidence * 100,
       match: 'relative',
     }
   }
@@ -87,7 +87,7 @@ export function compareKey(track: Track, rawKey: RawKeyResult | null): TrackKeyR
     libraryKey: track.key,
     detectedCamelot,
     detectedOpenKey,
-    confidence: rawKey.confidence,
+    confidence: rawKey.confidence * 100,
     match: 'mismatch',
   }
 }

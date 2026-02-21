@@ -32,6 +32,15 @@ export function applyHalfDoubleGuard(detected: number, stored: number): { adjust
   return { adjusted: best, wasAdjusted: best !== detected }
 }
 
+export function computeMedianBpm(segmentBpms: number[]): number | null {
+  if (segmentBpms.length === 0) return null
+  const sorted = [...segmentBpms].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid]
+}
+
 export function computeVariance(segmentBpms: number[]): { variancePercent: number; isVariableBpm: boolean } {
   if (segmentBpms.length < 3) {
     return { variancePercent: 0, isVariableBpm: false }
@@ -92,7 +101,7 @@ export function verifyBpm(track: Track, rawBeat: RawBeatResult | null): TrackBpm
       ...base,
       overallSeverity: 'warning',
       storedBpm: null,
-      detectedBpm: rawBeat.bpmEstimate,
+      detectedBpm: Math.round(computeMedianBpm(rawBeat.segmentBpms) ?? rawBeat.bpmEstimate),
       bpmDelta: null,
       halfDoubleAdjusted: false,
       isVariableBpm,
@@ -103,7 +112,8 @@ export function verifyBpm(track: Track, rawBeat: RawBeatResult | null): TrackBpm
   }
 
   // Apply half/double guard
-  const { adjusted, wasAdjusted } = applyHalfDoubleGuard(rawBeat.bpmEstimate, track.bpm)
+  const medianBpm = computeMedianBpm(rawBeat.segmentBpms) ?? rawBeat.bpmEstimate
+  const { adjusted, wasAdjusted } = applyHalfDoubleGuard(Math.round(medianBpm), track.bpm)
   const delta = adjusted - track.bpm
 
   // Variable BPM check
@@ -121,7 +131,7 @@ export function verifyBpm(track: Track, rawBeat: RawBeatResult | null): TrackBpm
     ...base,
     overallSeverity,
     storedBpm: track.bpm,
-    detectedBpm: adjusted,
+    detectedBpm: Math.round(adjusted),
     bpmDelta: delta,
     halfDoubleAdjusted: wasAdjusted,
     isVariableBpm,

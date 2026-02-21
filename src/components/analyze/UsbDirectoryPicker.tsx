@@ -9,6 +9,7 @@ import { Usb, FolderOpen } from 'lucide-react'
 interface UsbDirectoryPickerProps {
   isLoading: boolean
   trackCount: number | null
+  loadingStatus: string | null
   error: string | null
   onSelect: (handle: FileSystemDirectoryHandle) => void
 }
@@ -17,7 +18,7 @@ function supportsDirectoryPicker(): boolean {
   return typeof window !== 'undefined' && 'showDirectoryPicker' in window
 }
 
-export function UsbDirectoryPicker({ isLoading, trackCount, error, onSelect }: UsbDirectoryPickerProps) {
+export function UsbDirectoryPicker({ isLoading, trackCount, loadingStatus, error, onSelect }: UsbDirectoryPickerProps) {
   const [isDragOver, setIsDragOver] = useState(false)
 
   const handlePick = useCallback(async () => {
@@ -73,13 +74,8 @@ export function UsbDirectoryPicker({ isLoading, trackCount, error, onSelect }: U
           <>
             <Usb className="h-10 w-10 text-primary animate-pulse" />
             <div className="w-full max-w-xs space-y-2 text-center">
-              <p className="text-sm font-medium">Reading USB database...</p>
+              <p className="text-sm font-medium">{loadingStatus || 'USB lesen...'}</p>
               <Progress value={undefined} className="h-2" />
-              {trackCount != null && (
-                <p className="text-xs text-muted-foreground">
-                  {trackCount.toLocaleString()} tracks found
-                </p>
-              )}
             </div>
           </>
         ) : (

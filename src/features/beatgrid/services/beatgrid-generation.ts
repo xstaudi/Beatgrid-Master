@@ -54,11 +54,6 @@ export function generateBeatgrid(
     phaseOffsetSec: 0,
   }
 
-  // Guard: existierende Marker
-  if (existingMarkers.length > 0) {
-    return { ...skippedBase, skipReason: 'has-existing-grid' }
-  }
-
   // Guard: zu wenige Beats
   if (rawBeat.beatTimestamps.length < MIN_BEATS_FOR_ANALYSIS) {
     return { ...skippedBase, skipReason: 'too-few-beats' }
@@ -81,7 +76,7 @@ export function generateBeatgrid(
   medianBpm = adjusted
 
   // BPM runden auf 2 Dezimalstellen
-  const roundedBpm = Math.round(medianBpm * 100) / 100
+  const roundedBpm = Math.round(medianBpm)
 
   // Phase Offset = erster erkannter Beat
   const phaseOffsetSec = rawBeat.beatTimestamps[0]

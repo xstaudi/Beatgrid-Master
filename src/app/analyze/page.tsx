@@ -23,14 +23,14 @@ import { PlaylistSelector } from '@/components/analyze/PlaylistSelector'
 import { ProcessingIndicator } from '@/components/analyze/ProcessingIndicator'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { classifyTracks } from '@/features/analyze/services/classify-tracks'
 
-type Step = 'software' | 'import' | 'classification' | 'config' | 'processing'
-const STEPS: Step[] = ['software', 'import', 'classification', 'config', 'processing']
+type Step = 'software' | 'import' | 'config' | 'processing'
+const STEPS: Step[] = ['software', 'import', 'config', 'processing']
 
 const STEP_TITLES: Record<Step, string> = {
   software: 'DJ-Software wählen',
   import: 'Bibliothek importieren',
-  classification: 'Tracks klassifizieren',
   config: 'Analyse konfigurieren',
   processing: 'Analyse läuft',
 }
@@ -40,6 +40,7 @@ export default function AnalyzePage() {
   const {
     tracks,
     isLoading,
+    loadingStatus,
     importLibrary,
     importUsbLibrary,
     importPcLibrary,
@@ -79,7 +80,7 @@ export default function AnalyzePage() {
       setImportError(null)
       try {
         importLibrary(content)
-        setStep('classification')
+        setStep('config')
       } catch (err) {
         setImportError(err instanceof Error ? err.message : 'Failed to parse file')
       }
@@ -93,7 +94,7 @@ export default function AnalyzePage() {
       try {
         await importUsbLibrary(handle)
         usbHandleRef.current = handle
-        setStep('classification')
+        setStep('config')
       } catch (err) {
         setUsbError(err instanceof Error ? err.message : 'Failed to read USB drive')
       }
@@ -106,7 +107,7 @@ export default function AnalyzePage() {
       setPcError(null)
       try {
         await importPcLibrary(handle)
-        setStep('classification')
+        setStep('config')
       } catch (err) {
         setPcError(err instanceof Error ? err.message : 'Fehler beim Lesen der rekordbox-Bibliothek')
       }
@@ -120,7 +121,7 @@ export default function AnalyzePage() {
       try {
         await importAudioFolder(handle)
         audioFolderHandleRef.current = handle
-        setStep('classification')
+        setStep('config')
       } catch (err) {
         setAudioFolderError(err instanceof Error ? err.message : 'Fehler beim Lesen des Audio-Ordners')
       }
@@ -267,8 +268,7 @@ export default function AnalyzePage() {
   const canGoBack = stepIndex > 0 && step !== 'processing'
   const canGoForward =
     (step === 'software' && software != null) ||
-    (step === 'import' && tracks.length > 0) ||
-    step === 'classification'
+    (step === 'import' && tracks.length > 0)
 
   return (
     <main className="min-h-[calc(100vh-3.5rem)] p-6 md:p-10">
@@ -300,13 +300,17 @@ export default function AnalyzePage() {
 
         {/* Step content */}
         {step === 'software' && (
-          <SoftwareSelector selected={software} onChange={setSoftware} />
+          <SoftwareSelector
+            selected={software}
+            onChange={(sw) => { setSoftware(sw); setStep('import') }}
+          />
         )}
 
         {step === 'import' && software === 'rekordbox-usb' && (
           <UsbDirectoryPicker
             isLoading={isLoading}
             trackCount={tracks.length > 0 ? tracks.length : null}
+            loadingStatus={loadingStatus}
             error={usbError}
             onSelect={handleUsbDirectory}
           />
@@ -341,16 +345,9 @@ export default function AnalyzePage() {
           </div>
         )}
 
-        {step === 'classification' && (
-          <TrackClassificationSummary tracks={getActiveTracks()} />
-        )}
-
         {step === 'config' && (
           <div className="space-y-6">
-            <p className="text-center text-muted-foreground">
-              {getActiveTracks().length.toLocaleString()} Tracks
-              {activePlaylistId ? ' in Playlist' : ' importiert'}
-            </p>
+            <TrackClassificationSummary tracks={getActiveTracks()} />
             {playlists.length > 0 && (
               <PlaylistSelector
                 playlists={playlists}
@@ -384,6 +381,17 @@ export default function AnalyzePage() {
             >
               Analyse starten
             </Button>
+            {(() => {
+              const { freshCount } = classifyTracks(getActiveTracks())
+              if (freshCount === 0) return null
+              const secs = freshCount * 10
+              const est = secs < 60 ? `~${secs} Sek.` : `~${Math.ceil(secs / 60)} Min.`
+              return (
+                <p className="text-center text-xs text-muted-foreground/60">
+                  {freshCount} Tracks benötigen vollständige Audio-Analyse · {est} länger
+                </p>
+              )
+            })()}
           </div>
         )}
 
@@ -412,7 +420,7 @@ export default function AnalyzePage() {
               <ArrowLeft className="mr-2 h-4 w-4" />
               Zurück
             </Button>
-            {step !== 'config' && (
+            {step !== 'config' && step !== 'software' && (
               <Button
                 onClick={() => setStep(STEPS[stepIndex + 1])}
                 disabled={!canGoForward}

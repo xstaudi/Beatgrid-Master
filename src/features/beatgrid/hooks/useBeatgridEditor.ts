@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import type { GeneratedBeatgrid } from '../services/beatgrid-generation'
 import type { TempoMarker } from '@/types/track'
 import { useTrackStore } from '@/stores/track-store'
+import { useFixStore } from '@/stores/fix-store'
 
 function findNearestTimestamp(target: number, timestamps: number[]): number {
   if (timestamps.length === 0) return target
@@ -38,12 +39,14 @@ export function useBeatgridEditor(
   const [phaseOffset, setPhaseOffsetState] = useState(initialGrid.phaseOffsetSec)
   const [bpm] = useState(initialGrid.medianBpm)
   const applyGeneratedBeatgrid = useTrackStore((s) => s.applyGeneratedBeatgrid)
+  const setFixStatus = useFixStore((s) => s.setFixStatus)
 
-  // Gibt den gesnapten Wert zurueck
-  const setPhaseOffset = useCallback((rawOffset: number): number => {
-    const snapped = findNearestTimestamp(rawOffset, rawBeatTimestamps)
-    setPhaseOffsetState(snapped)
-    return snapped
+  // snap=true: zum naechsten erkannten Beat snappen (fuer Set Downbeat)
+  // snap=false (default): freie Positionierung (Drag, Pfeiltasten, Beat-Shift)
+  const setPhaseOffset = useCallback((rawOffset: number, snap = false): number => {
+    const value = snap ? findNearestTimestamp(rawOffset, rawBeatTimestamps) : rawOffset
+    setPhaseOffsetState(value)
+    return value
   }, [rawBeatTimestamps])
 
   const resetToDetected = useCallback(() => {
@@ -58,7 +61,13 @@ export function useBeatgridEditor(
       beat: 1,
     }
     applyGeneratedBeatgrid(trackId, [marker])
-  }, [trackId, phaseOffset, bpm, applyGeneratedBeatgrid])
+    setFixStatus(trackId, 'beatgrid', 'approved')
+  }, [trackId, phaseOffset, bpm, applyGeneratedBeatgrid, setFixStatus])
+
+  const skipEdit = useCallback(() => {
+    setFixStatus(trackId, 'beatgrid', 'skipped')
+    setPhaseOffsetState(initialGrid.phaseOffsetSec)
+  }, [trackId, initialGrid.phaseOffsetSec, setFixStatus])
 
   const currentMarkers: TempoMarker[] = [{
     position: phaseOffset,
@@ -74,6 +83,7 @@ export function useBeatgridEditor(
     setPhaseOffset,
     resetToDetected,
     confirmEdit,
+    skipEdit,
     isModified: phaseOffset !== initialGrid.phaseOffsetSec,
   }
 }

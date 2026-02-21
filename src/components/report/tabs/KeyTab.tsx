@@ -6,6 +6,7 @@ import { formatConfidence, confidenceColor } from '@/lib/utils'
 import { KEY_MATCH_LABELS, KEY_NOTATION_OPTIONS } from '@/features/key/constants'
 import type { KeyNotation } from '@/features/key/constants'
 import { detectKeyNotation, keyToNotation } from '@/features/key'
+import { FixActionBar } from '../FixActionBar'
 
 const NOTATION_LABELS: Record<KeyNotation, string> = {
   musical: 'Musical',
@@ -15,6 +16,7 @@ const NOTATION_LABELS: Record<KeyNotation, string> = {
 
 interface KeyTabProps {
   result: TrackKeyResult
+  trackId?: string
 }
 
 const matchColor: Record<TrackKeyResult['match'], string> = {
@@ -34,7 +36,7 @@ function Row({ label, value, className }: { label: string; value: string; classN
   )
 }
 
-export function KeyTab({ result }: KeyTabProps) {
+export function KeyTab({ result, trackId }: KeyTabProps) {
   const defaultNotation = result.libraryKey
     ? detectKeyNotation(result.libraryKey)
     : 'musical'
@@ -79,6 +81,9 @@ export function KeyTab({ result }: KeyTabProps) {
         value={KEY_MATCH_LABELS[result.match]}
         className={matchColor[result.match]}
       />
+      {trackId && (result.match === 'mismatch' || result.match === 'no-library-key') && (
+        <FixActionBar trackId={trackId} fixKind="key" />
+      )}
     </div>
   )
 }

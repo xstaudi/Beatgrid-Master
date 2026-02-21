@@ -25,8 +25,10 @@ export interface LibraryAdapter {
   readonly softwareType: DjSoftware
 }
 
+export type ProgressCallback = (status: string) => void
+
 export interface DirectoryAdapter {
   readonly softwareType: DjSoftware
   readonly importMode: 'directory'
-  parseDirectory(handle: FileSystemDirectoryHandle): Promise<DirectoryImportResult>
+  parseDirectory(handle: FileSystemDirectoryHandle, onProgress?: ProgressCallback): Promise<DirectoryImportResult>
 }

@@ -13,10 +13,15 @@ async function getTaglib() {
 /**
  * Tags aus einer Audio-Datei lesen via taglib-wasm.
  * Unterstuetzt MP3 (ID3v2), FLAC (Vorbis), M4A/MP4 (iTunes), WAV, OGG, AIFF.
+ *
+ * Hinweis: Die Simple API liefert nur Basis-Tags (title, artist, album, genre, year, comment).
+ * Fuer erweiterte Felder (composer, label, isrc) wird spaeter die Full API integriert.
  */
-export async function readTagsFromFile(fileBuffer: ArrayBuffer): Promise<AudioFileTags> {
+export async function readTagsFromFile(file: File | ArrayBuffer): Promise<AudioFileTags> {
   const taglib = await getTaglib()
-  const result = taglib.readTags(new Uint8Array(fileBuffer))
+
+  const input = file instanceof File ? file : new Uint8Array(file)
+  const result = await taglib.readTags(input)
 
   return {
     title: result.title || null,
@@ -24,10 +29,10 @@ export async function readTagsFromFile(fileBuffer: ArrayBuffer): Promise<AudioFi
     album: result.album || null,
     genre: result.genre || null,
     year: result.year ?? null,
-    composer: (result as Record<string, unknown>).composer as string | null ?? null,
-    label: (result as Record<string, unknown>).label as string | null ?? null,
+    composer: null, // TODO: Full API fuer erweiterte Felder
+    label: null,
     comment: result.comment || null,
-    isrc: (result as Record<string, unknown>).isrc as string | null ?? null,
+    isrc: null,
   }
 }
 

@@ -1,4 +1,4 @@
-import type { DirectoryAdapter, DirectoryImportResult, ParseWarning } from '../types'
+import type { DirectoryAdapter, DirectoryImportResult, ParseWarning, ProgressCallback } from '../types'
 import { parsePdbFile } from './pdb-parser'
 import { parseAnlzFile, mergeAnlzData, type AnlzData } from './anlz-parser'
 import { resolveAnlzFiles } from './anlz-resolver'
@@ -10,41 +10,47 @@ export class RekordboxUsbAdapter implements DirectoryAdapter {
   readonly softwareType = 'rekordbox-usb' as const
   readonly importMode = 'directory' as const
 
-  async parseDirectory(handle: FileSystemDirectoryHandle): Promise<DirectoryImportResult> {
+  async parseDirectory(handle: FileSystemDirectoryHandle, onProgress?: ProgressCallback): Promise<DirectoryImportResult> {
     const warnings: ParseWarning[] = []
+    const report = onProgress ?? (() => {})
 
     // Find PIONEER directory
+    report('USB-Laufwerk erkennen...')
     let pioneerDir: FileSystemDirectoryHandle
     try {
       pioneerDir = await handle.getDirectoryHandle('PIONEER', { create: false })
     } catch {
-      // Some sticks use "Contents" instead
       try {
         pioneerDir = await handle.getDirectoryHandle('Contents', { create: false })
       } catch {
         throw new Error(
-          'No PIONEER or Contents folder found. Make sure you selected a Rekordbox USB drive.'
+          'Kein PIONEER- oder Contents-Ordner gefunden. Waehle das Wurzelverzeichnis deines USB-Sticks.'
         )
       }
     }
 
     // Find export.pdb
+    report('Datenbank suchen...')
     const pdbFile = await this.findPdbFile(pioneerDir)
     if (!pdbFile) {
-      throw new Error('No export.pdb found in the PIONEER folder.')
+      throw new Error('Keine export.pdb im PIONEER-Ordner gefunden.')
     }
 
     // Parse PDB
+    report('Datenbank lesen...')
     const pdbData = await pdbFile.arrayBuffer()
     const { tracks: pdbTracks, playlists } = parsePdbFile(pdbData)
 
     if (pdbTracks.length === 0) {
-      throw new Error('No tracks found in the database.')
+      throw new Error('Keine Tracks in der Datenbank gefunden.')
     }
+
+    report(`${pdbTracks.length} Tracks gefunden — Beatgrids laden...`)
 
     // Load ANLZ files with concurrency limit
     const anlzMap = new Map<number, AnlzData>()
     const tracksWithPaths = pdbTracks.filter((t) => t.analyzePath)
+    let anlzLoaded = 0
 
     for (let i = 0; i < tracksWithPaths.length; i += MAX_CONCURRENT_ANLZ) {
       const batch = tracksWithPaths.slice(i, i + MAX_CONCURRENT_ANLZ)
@@ -53,8 +59,6 @@ export class RekordboxUsbAdapter implements DirectoryAdapter {
           const files = await resolveAnlzFiles(handle, pdbTrack.analyzePath)
           if (!files.dat && !files.ext) return null
 
-          // Parse both DAT and EXT, then merge:
-          // beat grid from DAT, extended cues from EXT
           const datData = files.dat ? parseAnlzFile(await files.dat.arrayBuffer()) : null
           const extData = files.ext ? parseAnlzFile(await files.ext.arrayBuffer()) : null
           const anlzData = mergeAnlzData(datData, extData)
@@ -65,6 +69,7 @@ export class RekordboxUsbAdapter implements DirectoryAdapter {
       for (const result of results) {
         if (result.status === 'fulfilled' && result.value) {
           anlzMap.set(result.value.id, result.value.data)
+          anlzLoaded++
         } else if (result.status === 'rejected') {
           warnings.push({
             field: 'anlz',
@@ -72,19 +77,22 @@ export class RekordboxUsbAdapter implements DirectoryAdapter {
           })
         }
       }
+
+      report(`Beatgrids laden... ${anlzLoaded}/${tracksWithPaths.length}`)
     }
 
     // Map to Track objects
+    report('Tracks verarbeiten...')
     const tracks = pdbTracks.map((pdbTrack) =>
       mapPdbTrackToTrack(pdbTrack, anlzMap.get(pdbTrack.id))
     )
 
-    const anlzLoaded = anlzMap.size
+    const anlzFinal = anlzMap.size
     const anlzTotal = tracksWithPaths.length
-    if (anlzTotal > 0 && anlzLoaded < anlzTotal) {
+    if (anlzTotal > 0 && anlzFinal < anlzTotal) {
       warnings.push({
         field: 'anlz',
-        message: `ANLZ data loaded for ${anlzLoaded}/${anlzTotal} tracks. Tracks without ANLZ will be missing beat grid and cue point data.`,
+        message: `ANLZ data loaded for ${anlzFinal}/${anlzTotal} tracks. Tracks without ANLZ will be missing beat grid and cue point data.`,
       })
     }
 
