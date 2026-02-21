@@ -8,7 +8,11 @@ import {
   GRID_VALIDATION_ERROR_RATIO,
   PHASE_BIN_WIDTH_MS,
   adaptiveTolerancesMs,
+  DYNAMIC_SEGMENT_MERGE_THRESHOLD_PCT,
+  DYNAMIC_SEGMENT_MIN_COUNT,
 } from '../constants'
+
+const SEGMENT_DURATION_SEC = 30
 
 export interface GeneratedBeatgrid {
   tempoMarkers: TempoMarker[]
@@ -97,6 +101,57 @@ function computeOptimalPhase(
   return beatTimestamps[0]
 }
 
+export function generateDynamicSegments(rawBeat: RawBeatResult): TempoMarker[] {
+  const { segmentBpms, beatTimestamps, kickOnsets, duration } = rawBeat
+  if (segmentBpms.length === 0) return []
+
+  // Phase 1: Konsekutive Segmente mit < 2% BPM-Diff zusammenfuehren
+  type Group = { startIdx: number; endIdx: number; bpms: number[] }
+  const groups: Group[] = []
+  let cur: Group = { startIdx: 0, endIdx: 0, bpms: [segmentBpms[0]] }
+  for (let i = 1; i < segmentBpms.length; i++) {
+    const prev = cur.bpms[cur.bpms.length - 1]
+    if (Math.abs(segmentBpms[i] - prev) / prev * 100 < DYNAMIC_SEGMENT_MERGE_THRESHOLD_PCT) {
+      cur.bpms.push(segmentBpms[i])
+      cur.endIdx = i
+    } else {
+      groups.push(cur)
+      cur = { startIdx: i, endIdx: i, bpms: [segmentBpms[i]] }
+    }
+  }
+  groups.push(cur)
+
+  // Phase 2: Gruppen kleiner als DYNAMIC_SEGMENT_MIN_COUNT in vorherige mergen
+  const merged: Group[] = []
+  for (const g of groups) {
+    if (g.endIdx - g.startIdx + 1 < DYNAMIC_SEGMENT_MIN_COUNT && merged.length > 0) {
+      const prev = merged[merged.length - 1]
+      prev.endIdx = g.endIdx
+      prev.bpms.push(...g.bpms)
+    } else {
+      merged.push({ startIdx: g.startIdx, endIdx: g.endIdx, bpms: [...g.bpms] })
+    }
+  }
+
+  // Phase 3: TempoMarker pro Gruppe
+  return merged.map((g, idx) => {
+    const startSec = g.startIdx * SEGMENT_DURATION_SEC
+    const endSec = Math.min((g.endIdx + 1) * SEGMENT_DURATION_SEC, duration)
+    const sorted = [...g.bpms].sort((a, b) => a - b)
+    const mid = Math.floor(sorted.length / 2)
+    const bpm = Math.round(
+      sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid],
+    )
+    const intervalSec = 60 / bpm
+    const kicks = (kickOnsets ?? []).filter(k => k >= startSec && k < endSec)
+    const beats = beatTimestamps.filter(b => b >= startSec && b < endSec)
+    const position = idx === 0
+      ? (kicks.length >= 1 ? kicks[0] % intervalSec : computeOptimalPhase(beats, intervalSec))
+      : (kicks.length >= 1 ? kicks[0] : beats[0] ?? startSec)
+    return { position, bpm, meter: '4/4', beat: 1 }
+  })
+}
+
 export function generateBeatgrid(
   rawBeat: RawBeatResult,
   existingMarkers: TempoMarker[],
@@ -128,6 +183,36 @@ export function generateBeatgrid(
   // Half/Double Guard
   const { adjusted } = applyHalfDoubleGuard(medianBpm, rawBeat.bpmEstimate)
   medianBpm = adjusted
+
+  // Dynamic path: variable BPM mit genuegend Segmenten -> Multi-Marker Grid
+  if (isVariableBpm && rawBeat.segmentBpms.length >= 4) {
+    const dynamicMarkers = generateDynamicSegments(rawBeat)
+    if (dynamicMarkers.length >= 2) {
+      const avgBpm = Math.round(dynamicMarkers.reduce((s, m) => s + m.bpm, 0) / dynamicMarkers.length)
+      const expected = buildExpectedBeats(dynamicMarkers, rawBeat.duration)
+      let errs = 0
+      const tol = adaptiveTolerancesMs(avgBpm).warningMs
+      for (const det of rawBeat.beatTimestamps) {
+        let best = Infinity
+        for (const exp of expected) {
+          const d = Math.abs(det - exp) * 1000
+          if (d < best) best = d
+          if (exp > det + best / 1000) break
+        }
+        if (best > tol) errs++
+      }
+      const errRatio = rawBeat.beatTimestamps.length > 0 ? errs / rawBeat.beatTimestamps.length : 0
+      return {
+        tempoMarkers: dynamicMarkers,
+        method: 'dynamic',
+        isVariableBpm: true,
+        confidence: Math.round(Math.max(0, (1 - errRatio) * 100)),
+        medianBpm: Math.round(medianBpm),
+        phaseOffsetSec: dynamicMarkers[0].position,
+      }
+    }
+    // Fallback: zu wenige distinkte Sektionen -> static
+  }
 
   // BPM runden auf 2 Dezimalstellen
   const roundedBpm = Math.round(medianBpm)

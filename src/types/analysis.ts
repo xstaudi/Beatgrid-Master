@@ -62,6 +62,8 @@ export interface TrackBeatgridResult {
   beatsMatched: number
   isVariableBpm: boolean
   skipReason?: 'no-grid' | 'no-pcm' | 'no-beats-detected'
+  offBeatMs?: number            // Signed Median (ms); >0 = Grid zu früh; undefined wenn < 3ms oder < 4 Punkte
+  outOfPhaseBeats?: 0 | 1      // 0 = in Phase; 1 = um 1 Beat versetzt; undefined wenn < 8 Kicks
 }
 
 export interface BeatgridCheckResult {

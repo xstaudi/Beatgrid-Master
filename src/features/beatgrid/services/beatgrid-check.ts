@@ -5,6 +5,7 @@ import {
   MIN_BEATS_FOR_ANALYSIS,
   adaptiveTolerancesMs,
 } from '../constants'
+import { detectOffBeat, detectOutOfPhase } from './beatgrid-phase'
 
 function driftSeverity(driftMs: number, bpm: number): Severity {
   const abs = Math.abs(driftMs)
@@ -183,6 +184,11 @@ export function checkBeatgrid(track: Track, rawBeat: RawBeatResult | null): Trac
     overallSeverity = 'warning'
   }
 
+  const offBeatRaw = detectOffBeat(driftPoints)
+  const offBeatMs = Math.abs(offBeatRaw) >= 3 ? offBeatRaw : undefined
+  const outOfPhaseRaw = detectOutOfPhase(expectedBeats, rawBeat.kickOnsets ?? [])
+  const outOfPhaseBeats = outOfPhaseRaw !== null ? outOfPhaseRaw : undefined
+
   return {
     ...base,
     overallSeverity,
@@ -193,6 +199,8 @@ export function checkBeatgrid(track: Track, rawBeat: RawBeatResult | null): Trac
     beatsAnalyzed: rawBeat.beatTimestamps.length,
     beatsMatched: matched,
     isVariableBpm,
+    offBeatMs,
+    outOfPhaseBeats,
   }
 }
 

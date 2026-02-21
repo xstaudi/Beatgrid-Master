@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generateBeatgrid } from './beatgrid-generation'
+import { generateBeatgrid, generateDynamicSegments } from './beatgrid-generation'
 import type { RawBeatResult } from '@/types/audio'
 import type { TempoMarker } from '@/types/track'
 
@@ -223,6 +223,32 @@ describe('generateBeatgrid', () => {
     expect(result.confidence).toBeGreaterThan(70)
   })
 
+  it('Dynamic Grid: Variable BPM (120→128→124) -> method dynamic + 3 Marker via generateBeatgrid', () => {
+    // 6 Segmente: 2x120, 2x128, 2x124 -> 3 Gruppen (>2% BPM-Diff zwischen Gruppen)
+    // Varianz: median=124, max-dev=|116-124|/124=6.5% > 5% -> isVariableBpm=true
+    const segmentBpms = [116, 116, 128, 128, 124, 124]
+    const beats = [
+      ...generateEvenBeats(116, 60, 0.1),
+      ...generateEvenBeats(128, 60, 60.1),
+      ...generateEvenBeats(124, 60, 120.1),
+    ]
+    const rawBeat = makeRawBeat({
+      beatTimestamps: beats,
+      segmentBpms,
+      bpmEstimate: 123,
+      duration: 180,
+    })
+
+    const result = generateBeatgrid(rawBeat, [])
+
+    expect(result.method).toBe('dynamic')
+    expect(result.isVariableBpm).toBe(true)
+    expect(result.tempoMarkers).toHaveLength(3)
+    expect(result.tempoMarkers[0].bpm).toBe(116)
+    expect(result.tempoMarkers[1].bpm).toBe(128)
+    expect(result.tempoMarkers[2].bpm).toBe(124)
+  })
+
   it('Beats mit Jitter: Median-BPM trotzdem korrekt', () => {
     // Deterministischer Jitter (sinusfoermig, max ±3ms)
     const interval = 60 / 128
@@ -245,5 +271,66 @@ describe('generateBeatgrid', () => {
     expect(result.method).toBe('static')
     expect(result.medianBpm).toBeCloseTo(128, 0)
     expect(result.confidence).toBeGreaterThan(70)
+  })
+})
+
+describe('generateDynamicSegments', () => {
+  it('Kleine Fluktuation (<2%) -> ein Marker (alles zusammengefuehrt)', () => {
+    const rawBeat = makeRawBeat({
+      segmentBpms: [120, 120.5, 121, 120.8, 120.2, 120.7],
+      beatTimestamps: generateEvenBeats(120, 180, 0.1),
+      duration: 180,
+    })
+
+    const markers = generateDynamicSegments(rawBeat)
+
+    expect(markers).toHaveLength(1)
+  })
+
+  it('Zu wenig Segmente (<4) -> generateBeatgrid Fallback zu static', () => {
+    // isVariableBpm=true (17% Varianz) aber segmentBpms.length=3 < 4 -> static
+    const rawBeat = makeRawBeat({
+      beatTimestamps: generateEvenBeats(120, 90, 0.1),
+      segmentBpms: [100, 135, 115],
+      bpmEstimate: 120,
+      duration: 90,
+    })
+
+    const result = generateBeatgrid(rawBeat, [])
+
+    expect(result.method).toBe('static')
+    expect(result.isVariableBpm).toBe(true)
+  })
+
+  it('Phase-Anchor: erster Kick im Zeitfenster bestimmt Position des ersten Markers', () => {
+    const bpm = 120
+    const intervalSec = 60 / bpm  // 0.5s
+    const kickOffset = 0.3
+    const rawBeat = makeRawBeat({
+      segmentBpms: [120, 120, 128, 128],
+      beatTimestamps: generateEvenBeats(120, 120, kickOffset),
+      kickOnsets: [kickOffset, 5.0, 10.0, 20.0, 30.0],
+      duration: 120,
+    })
+
+    const markers = generateDynamicSegments(rawBeat)
+
+    // Erster Marker: phase = kickOffset % intervalSec
+    expect(markers[0].position).toBeCloseTo(kickOffset % intervalSec, 3)
+  })
+
+  it('Phase-Anchor Fallback: ohne kickOnsets via Beat-Histogramm', () => {
+    const beatOffset = 0.25
+    const rawBeat = makeRawBeat({
+      segmentBpms: [120, 120, 128, 128],
+      beatTimestamps: generateEvenBeats(120, 120, beatOffset),
+      // kein kickOnsets
+      duration: 120,
+    })
+
+    const markers = generateDynamicSegments(rawBeat)
+
+    // Phase aus Beat-Histogramm -> ≈ beatOffset
+    expect(markers[0].position).toBeCloseTo(beatOffset, 2)
   })
 })

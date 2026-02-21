@@ -15,3 +15,7 @@ export function adaptiveTolerancesMs(bpm: number): { okMs: number; warningMs: nu
 
 // Bin-Breite fuer Phase-Histogramm (ms)
 export const PHASE_BIN_WIDTH_MS = 15
+
+// Dynamic-Segment Konstanten fuer variable-BPM Beatgrid
+export const DYNAMIC_SEGMENT_MERGE_THRESHOLD_PCT = 2.0  // < 2% BPM-Diff -> gleiche Sektion
+export const DYNAMIC_SEGMENT_MIN_COUNT = 2             // Min 2 raw Segmente pro Gruppe
