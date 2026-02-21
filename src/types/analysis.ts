@@ -8,7 +8,7 @@ export type CheckId =
   | 'clipping'
   | 'duplicates'
 
-const AUDIO_CHECKS: Set<CheckId> = new Set(['beatgrid', 'bpm', 'key', 'clipping', 'duplicates'])
+const AUDIO_CHECKS: Set<CheckId> = new Set(['beatgrid', 'bpm', 'key', 'clipping'])
 
 export function checkRequiresAudio(check: CheckId): boolean {
   return AUDIO_CHECKS.has(check)

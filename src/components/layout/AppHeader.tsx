@@ -6,6 +6,7 @@ import { useAnalysisStore } from '@/stores/analysis-store'
 
 const navLinks: { href: string; label: string; requiresResults?: boolean }[] = [
   { href: '/analyze', label: 'Analyze' },
+  { href: '/duplicates', label: 'Duplicate Scanner' },
   { href: '/report', label: 'Report', requiresResults: true },
 ]
 

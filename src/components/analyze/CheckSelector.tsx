@@ -20,7 +20,6 @@ const CHECK_OPTIONS: CheckOption[] = [
   { id: 'bpm', label: 'BPM Verification', description: 'Validate BPM values against audio analysis', available: true },
   { id: 'key', label: 'Key Detection', description: 'Verify musical key accuracy', available: true },
   { id: 'clipping', label: 'Clipping Detection', description: 'Find tracks with audio clipping', available: true },
-  { id: 'duplicates', label: 'Duplicate Detection', description: 'Identify duplicate tracks in library', available: true },
 ]
 
 interface CheckSelectorProps {

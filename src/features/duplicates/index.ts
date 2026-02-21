@@ -4,6 +4,10 @@ export {
 } from './services/duplicate-check'
 export { computeQualityScore } from './services/quality-score'
 export { DuplicateSummaryCard } from './components/DuplicateSummaryCard'
+export { DuplicateGroupList } from './components/DuplicateGroupList'
+export { BulkActionBar } from './components/BulkActionBar'
+export { useDuplicateScanner } from './hooks/useDuplicateScanner'
+export type { ScanPhase, UseDuplicateScannerReturn, ScannedFile } from './hooks/useDuplicateScanner'
 export {
   METADATA_TITLE_SIMILARITY_THRESHOLD,
   METADATA_ARTIST_SIMILARITY_THRESHOLD,
