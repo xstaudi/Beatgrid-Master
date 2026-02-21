@@ -12,6 +12,7 @@ interface TrackStore {
   sourceVersion: string | null
   warnings: ParseWarning[]
   isLoading: boolean
+  loadingStatus: string | null
   importedAt: Date | null
   rawXml: string | null
   playlists: Playlist[]
@@ -26,6 +27,7 @@ interface TrackStore {
   getActiveTracks: () => Track[]
   applyGeneratedBeatgrid: (trackId: string, markers: TempoMarker[]) => void
   updateTrackDuration: (trackId: string, duration: number) => void
+  updateTrackMetadata: (trackId: string, field: string, value: string | number | null) => void
   clearLibrary: () => void
   getTrackById: (id: string) => Track | undefined
 }
@@ -36,6 +38,7 @@ export const useTrackStore = create<TrackStore>((set, get) => ({
   sourceVersion: null,
   warnings: [],
   isLoading: false,
+  loadingStatus: null,
   importedAt: null,
   rawXml: null,
   playlists: [],
@@ -65,16 +68,19 @@ export const useTrackStore = create<TrackStore>((set, get) => ({
   },
 
   importUsbLibrary: async (handle: FileSystemDirectoryHandle) => {
-    set({ isLoading: true })
+    set({ isLoading: true, loadingStatus: 'USB-Laufwerk lesen...' })
     try {
       const adapter = createDirectoryAdapter('rekordbox-usb')
-      const result = await adapter.parseDirectory(handle)
+      const result = await adapter.parseDirectory(handle, (status) => {
+        set({ loadingStatus: status })
+      })
       set({
         tracks: result.tracks,
         source: result.source,
         sourceVersion: result.version,
         warnings: result.warnings,
         isLoading: false,
+        loadingStatus: null,
         importedAt: new Date(),
         rawXml: null,
         playlists: result.playlists,
@@ -82,7 +88,7 @@ export const useTrackStore = create<TrackStore>((set, get) => ({
         importMode: 'directory',
       })
     } catch (error) {
-      set({ isLoading: false })
+      set({ isLoading: false, loadingStatus: null })
       throw error
     }
   },
@@ -146,6 +152,34 @@ export const useTrackStore = create<TrackStore>((set, get) => ({
       tracks: state.tracks.map((t) =>
         t.id === trackId && t.duration === 0 ? { ...t, duration } : t,
       ),
+    }))
+  },
+
+  updateTrackMetadata: (trackId, field, value) => {
+    set((state) => ({
+      tracks: state.tracks.map((t) => {
+        if (t.id !== trackId) return t
+        switch (field) {
+          case 'title':
+            return { ...t, title: String(value ?? '') }
+          case 'artist':
+            return { ...t, artist: String(value ?? '') }
+          case 'album':
+            return { ...t, album: String(value ?? '') }
+          case 'genre':
+            return { ...t, genre: String(value ?? '') }
+          case 'year':
+            return { ...t, year: typeof value === 'number' ? value : value ? parseInt(String(value), 10) || null : null }
+          case 'label':
+            return { ...t, label: String(value ?? '') }
+          case 'composer':
+            return { ...t, composer: String(value ?? '') }
+          case 'comment':
+            return { ...t, comment: String(value ?? '') }
+          default:
+            return t
+        }
+      }),
     }))
   },
 

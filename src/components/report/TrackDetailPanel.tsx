@@ -4,8 +4,8 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import { SeverityBadge } from './SeverityBadge'
-import { DriftGraph } from './DriftGraph'
+
+
 import { MetadataTab } from './tabs/MetadataTab'
 import { BeatgridTab } from './tabs/BeatgridTab'
 import { BpmTab } from './tabs/BpmTab'
@@ -13,12 +13,12 @@ import { KeyTab } from './tabs/KeyTab'
 import { ClippingTab } from './tabs/ClippingTab'
 import { DuplicatesTab } from './tabs/DuplicatesTab'
 import { WaveformPlayer } from '@/features/waveform'
-import { toBpmSegments, SEGMENT_DURATION_SECONDS } from '@/features/bpm'
+import { toBpmSegments } from '@/features/bpm'
 import { useAnalysisStore } from '@/stores/analysis-store'
 import { useTrackStore } from '@/stores/track-store'
 import { useProcessingStore } from '@/stores/processing-store'
 import { CHECK_LABELS } from '@/features/report'
-import { formatDuration } from '@/lib/utils/format'
+
 import type {
   MetadataAuditResult,
   BeatgridCheckResult,
@@ -66,19 +66,12 @@ export function TrackDetailPanel({ trackId, onClose }: TrackDetailPanelProps) {
     ? dupResult?.groups.find((g) => g.groupId === trackDup.duplicateGroupId) ?? null
     : null
 
-  const severities = [trackMeta, trackBeat, trackBpm, trackKey, trackClip, trackDup]
-    .filter(Boolean)
-    .map((r) => r!.overallSeverity)
-  const overallSeverity = severities.includes('error') ? 'error' : severities.includes('warning') ? 'warning' : 'ok'
-
-  const hasStoredGrid = track.tempoMarkers.length > 0
-  const isBeatgridTab = currentCheck === 'beatgrid'
   const generatedGrid = generatedBeatgrids.get(trackId) ?? null
-  const isGenerationMode = isBeatgridTab && generatedGrid && generatedGrid.method !== 'skipped' && pcmData
 
   const showWaveform = currentCheck !== 'metadata'
     && currentCheck !== 'duplicates'
-    && !isGenerationMode
+    && currentCheck !== 'key'
+    && currentCheck !== 'beatgrid'
 
   return (
     <div className="border-t-2 border-primary bg-card animate-in slide-in-from-bottom-4 duration-300">
@@ -89,10 +82,6 @@ export function TrackDetailPanel({ trackId, onClose }: TrackDetailPanelProps) {
             <span className="art-deco-divider">{track.title || 'Untitled'}</span>
           </h3>
           <span className="text-sm text-muted-foreground truncate">{track.artist || 'Unknown Artist'}</span>
-          <SeverityBadge severity={overallSeverity} />
-          {track.duration > 0 && (
-            <span className="text-sm text-muted-foreground">{formatDuration(track.duration)}</span>
-          )}
           {track.bpm && (
             <span className="text-sm text-muted-foreground">{track.bpm.toFixed(1)} BPM</span>
           )}
@@ -117,46 +106,7 @@ export function TrackDetailPanel({ trackId, onClose }: TrackDetailPanelProps) {
           {/* Waveform-Sektion */}
           {showWaveform && (
             <div className="mt-4 space-y-4">
-              {isBeatgridTab && hasStoredGrid ? (
-                <>
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
-                      Gespeichertes Grid
-                    </p>
-                    <WaveformPlayer
-                      pcmData={pcmData}
-                      audioFileHandle={audioFileHandle}
-                      duration={track.duration}
-                      tempoMarkers={track.tempoMarkers}
-                      zoomEnabled
-                    />
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
-                      Erkannte Beats
-                    </p>
-                    <WaveformPlayer
-                      pcmData={pcmData}
-                      duration={track.duration}
-                      beatDriftPoints={trackBeat?.driftPoints}
-                      zoomEnabled
-                    />
-                  </div>
-                </>
-              ) : isBeatgridTab ? (
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
-                    Erkannte Beats
-                  </p>
-                  <WaveformPlayer
-                    pcmData={pcmData}
-                    audioFileHandle={audioFileHandle}
-                    duration={track.duration}
-                    beatDriftPoints={trackBeat?.driftPoints}
-                    zoomEnabled
-                  />
-                </div>
-              ) : currentCheck === 'bpm' ? (
+              {currentCheck === 'bpm' ? (
                 <WaveformPlayer
                   pcmData={pcmData}
                   audioFileHandle={audioFileHandle}
@@ -165,7 +115,6 @@ export function TrackDetailPanel({ trackId, onClose }: TrackDetailPanelProps) {
                     ? toBpmSegments(trackBpm.segmentBpms, track.duration)
                     : undefined}
                   referenceBpm={trackBpm?.detectedBpm ?? undefined}
-                  tempoMarkers={track.tempoMarkers}
                   zoomEnabled
                 />
               ) : currentCheck === 'clipping' ? (
@@ -186,9 +135,6 @@ export function TrackDetailPanel({ trackId, onClose }: TrackDetailPanelProps) {
                 />
               )}
 
-              {isBeatgridTab && trackBeat && !trackBeat.skipReason && (
-                <DriftGraph driftPoints={trackBeat.driftPoints} duration={track.duration} />
-              )}
             </div>
           )}
 
@@ -196,7 +142,7 @@ export function TrackDetailPanel({ trackId, onClose }: TrackDetailPanelProps) {
           <div className="mt-6">
             {trackMeta && (
               <TabsContent value="metadata" className="mt-0">
-                <MetadataTab result={trackMeta} />
+                <MetadataTab result={trackMeta} track={track} />
               </TabsContent>
             )}
             {trackBeat && (
@@ -215,12 +161,12 @@ export function TrackDetailPanel({ trackId, onClose }: TrackDetailPanelProps) {
             )}
             {trackBpm && (
               <TabsContent value="bpm" className="mt-0">
-                <BpmTab result={trackBpm} />
+                <BpmTab result={trackBpm} trackId={trackId} />
               </TabsContent>
             )}
             {trackKey && (
               <TabsContent value="key" className="mt-0">
-                <KeyTab result={trackKey} />
+                <KeyTab result={trackKey} trackId={trackId} />
               </TabsContent>
             )}
             {trackClip && (
