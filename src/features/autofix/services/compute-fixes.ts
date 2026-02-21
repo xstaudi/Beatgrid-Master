@@ -93,11 +93,14 @@ function computeBeatgridFixes(
     const track = trackMap.get(tr.trackId)
     if (!track || track.tempoMarkers.length === 0) continue
 
-    const avgSignedDriftMs =
-      tr.driftPoints.reduce((sum, d) => sum + d.driftMs, 0) /
-      tr.driftPoints.length
+    const sorted = tr.driftPoints.map((d) => d.driftMs).sort((a, b) => a - b)
+    const mid = Math.floor(sorted.length / 2)
+    const medianSignedDriftMs =
+      sorted.length % 2 === 0
+        ? (sorted[mid - 1] + sorted[mid]) / 2
+        : sorted[mid]
     const currentPos = track.tempoMarkers[0].position
-    const newDownbeatSec = currentPos + avgSignedDriftMs / 1000
+    const newDownbeatSec = currentPos + medianSignedDriftMs / 1000
     const bpm = track.tempoMarkers[0].bpm
 
     const op: FixOperation = {
@@ -213,5 +216,12 @@ export function computeFixes(
   const clipResult = results.results.find((r): r is ClippingCheckResult => r.type === 'clipping')
   if (clipResult) fixes.push(...computeClippingFixes(trackMap, clipResult))
 
-  return fixes
+  // Dedupliziere: pro (trackId, kind) nur ein Fix – späterer Eintrag gewinnt.
+  // Verhindert doppelte Beatgrid-Fixes wenn sowohl Drift-Korrektur als auch
+  // generiertes Grid für denselben Track vorhanden sind.
+  const fixMap = new Map<string, FixEntry>()
+  for (const fix of fixes) {
+    fixMap.set(`${fix.operation.trackId}-${fix.operation.kind}`, fix)
+  }
+  return Array.from(fixMap.values())
 }

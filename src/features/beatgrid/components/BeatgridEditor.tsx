@@ -64,10 +64,12 @@ export function BeatgridEditor({
     const n = Math.round((viewCenter - phaseOffset) / barInterval)
     const nearestDownbeat = phaseOffset + n * barInterval
     const delta = viewCenter - nearestDownbeat
-    const newOffset = Math.max(0, Math.min(duration, phaseOffset + delta))
-    const value = setPhaseOffset(newOffset)
+    const rawOffset = phaseOffset + delta
+    // Normalisieren: ersten Downbeat im Track (immer in [0, barInterval))
+    const normalizedOffset = ((rawOffset % barInterval) + barInterval) % barInterval
+    const value = setPhaseOffset(Math.max(0, normalizedOffset))
     onPhaseOffsetChange?.(value)
-  }, [viewCenter, phaseOffset, bpm, duration, setPhaseOffset, onPhaseOffsetChange])
+  }, [viewCenter, phaseOffset, bpm, setPhaseOffset, onPhaseOffsetChange])
 
   // Keyboard: Arrow-Keys verschieben Beat-1 fein
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -110,7 +112,7 @@ export function BeatgridEditor({
         <Button variant="outline" size="sm" onClick={() => shiftGrid(-1)} title="1 Beat zurück">
           ◄ |||
         </Button>
-        <Button variant="outline" size="sm" onClick={handleSetDownbeat} title="Downbeat an Waveform-Mitte setzen">
+        <Button variant="outline" size="sm" onClick={handleSetDownbeat} title="Waveform zum ersten Kick scrollen, dann Downbeat auf Mitte setzen">
           <span className="inline-block w-0.5 h-4 bg-red-500 mr-1.5" />
           Set Downbeat
         </Button>

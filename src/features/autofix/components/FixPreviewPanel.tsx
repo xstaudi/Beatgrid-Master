@@ -52,9 +52,9 @@ export function FixPreviewPanel() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {entries.map((entry) => (
+              {entries.map((entry, idx) => (
                 <label
-                  key={`${entry.operation.trackId}-${entry.operation.kind}`}
+                  key={`${entry.operation.trackId}-${entry.operation.kind}-${idx}`}
                   className="flex items-center gap-3 border p-3 text-sm hover:bg-muted/50 cursor-pointer"
                 >
                   <Checkbox

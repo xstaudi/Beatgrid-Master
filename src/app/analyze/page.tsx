@@ -13,24 +13,19 @@ import { useAnalysisPipelines } from '@/features/analyze/hooks/useAnalysisPipeli
 import { TrackClassificationSummary } from '@/features/analyze/components/TrackClassificationSummary'
 import { openAudioDirectory, scanDirectoryForAudio, matchTracksToFiles, readAudioFile } from '@/lib/audio/file-access'
 import { SoftwareSelector } from '@/components/analyze/SoftwareSelector'
-import { FileDropZone } from '@/components/analyze/FileDropZone'
 import { CheckSelector } from '@/components/analyze/CheckSelector'
 import { AudioDirectoryPicker } from '@/components/analyze/AudioDirectoryPicker'
-import { UsbDirectoryPicker } from '@/components/analyze/UsbDirectoryPicker'
-import { RekordboxPcPicker } from '@/components/analyze/RekordboxPcPicker'
-import { AudioFolderPicker } from '@/components/analyze/AudioFolderPicker'
 import { PlaylistSelector } from '@/components/analyze/PlaylistSelector'
 import { ProcessingIndicator } from '@/components/analyze/ProcessingIndicator'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { classifyTracks } from '@/features/analyze/services/classify-tracks'
 
-type Step = 'software' | 'import' | 'config' | 'processing'
-const STEPS: Step[] = ['software', 'import', 'config', 'processing']
+type Step = 'software' | 'config' | 'processing'
+const STEPS: Step[] = ['software', 'config', 'processing']
 
 const STEP_TITLES: Record<Step, string> = {
   software: 'Import wählen',
-  import: 'Bibliothek importieren',
   config: 'Analyse konfigurieren',
   processing: 'Analyse läuft',
 }
@@ -39,11 +34,7 @@ export default function AnalyzePage() {
   const router = useRouter()
   const {
     tracks,
-    isLoading,
-    loadingStatus,
-    importLibrary,
     importUsbLibrary,
-    importPcLibrary,
     importAudioFolder,
     playlists,
     activePlaylistId,
@@ -62,69 +53,29 @@ export default function AnalyzePage() {
 
   const [step, setStep] = useState<Step>('software')
   const [software, setSoftware] = useState<DjSoftware | null>(null)
-  const [importError, setImportError] = useState<string | null>(null)
   const [needsAudio, setNeedsAudio] = useState(false)
   const [audioSkipped, setAudioSkipped] = useState(false)
   const [isPicking, setIsPicking] = useState(false)
-  const [usbError, setUsbError] = useState<string | null>(null)
-  const [pcError, setPcError] = useState<string | null>(null)
-  const [audioFolderError, setAudioFolderError] = useState<string | null>(null)
 
   const decodePipelineRef = useRef<DecodePipeline | null>(null)
   const usbHandleRef = useRef<FileSystemDirectoryHandle | null>(null)
   const audioFolderHandleRef = useRef<FileSystemDirectoryHandle | null>(null)
   const stepIndex = STEPS.indexOf(step)
 
-  const handleFile = useCallback(
-    (content: string) => {
-      setImportError(null)
-      try {
-        importLibrary(content)
-        setStep('config')
-      } catch (err) {
-        setImportError(err instanceof Error ? err.message : 'Failed to parse file')
-      }
-    },
-    [importLibrary]
-  )
-
   const handleUsbDirectory = useCallback(
     async (handle: FileSystemDirectoryHandle) => {
-      setUsbError(null)
-      try {
-        await importUsbLibrary(handle)
-        usbHandleRef.current = handle
-        setStep('config')
-      } catch (err) {
-        setUsbError(err instanceof Error ? err.message : 'Failed to read USB drive')
-      }
+      await importUsbLibrary(handle)
+      usbHandleRef.current = handle
+      setStep('config')
     },
     [importUsbLibrary]
   )
 
-  const handlePcDirectory = useCallback(
-    async (handle: FileSystemDirectoryHandle) => {
-      setPcError(null)
-      try {
-        await importPcLibrary(handle)
-        setStep('config')
-      } catch (err) {
-        setPcError(err instanceof Error ? err.message : 'Fehler beim Lesen der rekordbox-Bibliothek')
-      }
-    },
-    [importPcLibrary]
-  )
-
   const handleAudioFolderDirectory = useCallback(
     async (handle: FileSystemDirectoryHandle) => {
-      setAudioFolderError(null)
-      try {
-        await importAudioFolder(handle)
-        audioFolderHandleRef.current = handle
-        setStep('config')
-      } catch (err) {
-        setAudioFolderError(err instanceof Error ? err.message : 'Fehler beim Lesen des Audio-Ordners')
-      }
+      await importAudioFolder(handle)
+      audioFolderHandleRef.current = handle
+      setStep('config')
     },
     [importAudioFolder]
   )
@@ -264,11 +215,7 @@ export default function AnalyzePage() {
   )
 
   const showAnalysisError = step === 'processing' && !isRunning && !results && analysisError
-
   const canGoBack = stepIndex > 0 && step !== 'processing'
-  const canGoForward =
-    (step === 'software' && software != null) ||
-    (step === 'import' && tracks.length > 0)
 
   return (
     <main className="min-h-[calc(100vh-3.5rem)] p-6 md:p-10">
@@ -302,47 +249,23 @@ export default function AnalyzePage() {
         {step === 'software' && (
           <SoftwareSelector
             selected={software}
-            onChange={(sw) => { setSoftware(sw); setStep('import') }}
+            onChange={async (sw) => {
+              setSoftware(sw)
+              const hasDirectoryPicker = typeof window !== 'undefined' && 'showDirectoryPicker' in window
+              if (!hasDirectoryPicker) return
+              if (sw === 'audio-folder') {
+                try {
+                  const handle = await window.showDirectoryPicker({ mode: 'read' })
+                  await handleAudioFolderDirectory(handle)
+                } catch { /* Abgebrochen */ }
+              } else if (sw === 'rekordbox-usb') {
+                try {
+                  const handle = await window.showDirectoryPicker({ mode: 'read' })
+                  await handleUsbDirectory(handle)
+                } catch { /* Abgebrochen */ }
+              }
+            }}
           />
-        )}
-
-        {step === 'import' && software === 'rekordbox-usb' && (
-          <UsbDirectoryPicker
-            isLoading={isLoading}
-            trackCount={tracks.length > 0 ? tracks.length : null}
-            loadingStatus={loadingStatus}
-            error={usbError}
-            onSelect={handleUsbDirectory}
-          />
-        )}
-
-        {step === 'import' && software === 'rekordbox-pc' && (
-          <RekordboxPcPicker
-            isLoading={isLoading}
-            trackCount={tracks.length > 0 ? tracks.length : null}
-            error={pcError}
-            onSelect={handlePcDirectory}
-          />
-        )}
-
-        {step === 'import' && software === 'audio-folder' && (
-          <AudioFolderPicker
-            isLoading={isLoading}
-            trackCount={tracks.length > 0 ? tracks.length : null}
-            error={audioFolderError}
-            onSelect={handleAudioFolderDirectory}
-          />
-        )}
-
-        {step === 'import' && software !== 'rekordbox-usb' && software !== 'rekordbox-pc' && software !== 'audio-folder' && (
-          <div className="space-y-4">
-            <FileDropZone onFile={handleFile} isLoading={isLoading} />
-            {importError && (
-              <p role="alert" className="text-sm text-destructive text-center">
-                {importError}
-              </p>
-            )}
-          </div>
         )}
 
         {step === 'config' && (
@@ -420,15 +343,6 @@ export default function AnalyzePage() {
               <ArrowLeft className="mr-2 h-4 w-4" />
               Zurück
             </Button>
-            {step !== 'config' && step !== 'software' && (
-              <Button
-                onClick={() => setStep(STEPS[stepIndex + 1])}
-                disabled={!canGoForward}
-              >
-                Weiter
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            )}
           </div>
         )}
       </div>

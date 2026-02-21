@@ -2,15 +2,15 @@ import type { Track, TempoMarker } from '@/types/track'
 import type { Severity, TrackBeatgridResult, BeatgridCheckResult, BeatDriftPoint } from '@/types/analysis'
 import type { RawBeatResult } from '@/types/audio'
 import {
-  BEATGRID_TOLERANCE_OK_MS,
-  BEATGRID_TOLERANCE_WARNING_MS,
   MIN_BEATS_FOR_ANALYSIS,
+  adaptiveTolerancesMs,
 } from '../constants'
 
-function driftSeverity(driftMs: number): Severity {
+function driftSeverity(driftMs: number, bpm: number): Severity {
   const abs = Math.abs(driftMs)
-  if (abs <= BEATGRID_TOLERANCE_OK_MS) return 'ok'
-  if (abs <= BEATGRID_TOLERANCE_WARNING_MS) return 'warning'
+  const { okMs, warningMs } = adaptiveTolerancesMs(bpm)
+  if (abs <= okMs) return 'ok'
+  if (abs <= warningMs) return 'warning'
   return 'error'
 }
 
@@ -126,6 +126,10 @@ export function checkBeatgrid(track: Track, rawBeat: RawBeatResult | null): Trac
   // Check variable BPM
   const isVariableBpm = track.tempoMarkers.length > 1 && hasSignificantBpmVariance(track.tempoMarkers)
 
+  // BPM fuer adaptive Toleranzen
+  const toleranceBpm = track.tempoMarkers[0].bpm
+  const { warningMs: adaptiveWarningMs } = adaptiveTolerancesMs(toleranceBpm)
+
   // Build expected grid
   const expectedBeats = buildExpectedBeats(track.tempoMarkers, rawBeat.duration)
   const driftPoints: BeatDriftPoint[] = []
@@ -146,7 +150,7 @@ export function checkBeatgrid(track: Track, rawBeat: RawBeatResult | null): Trac
       beatIndex: nearest.index,
       positionMs: detected * 1000,
       driftMs: nearest.driftMs,
-      severity: driftSeverity(nearest.driftMs),
+      severity: driftSeverity(nearest.driftMs, toleranceBpm),
     })
   }
 
@@ -158,10 +162,10 @@ export function checkBeatgrid(track: Track, rawBeat: RawBeatResult | null): Trac
   if (driftPoints.length > 0) {
     const sortedDrifts = driftPoints.map((dp) => Math.abs(dp.driftMs)).sort((a, b) => a - b)
     const medianDrift = sortedDrifts[Math.floor(sortedDrifts.length / 2)]
-    const errorCount = driftPoints.filter((dp) => Math.abs(dp.driftMs) > BEATGRID_TOLERANCE_WARNING_MS).length
+    const errorCount = driftPoints.filter((dp) => Math.abs(dp.driftMs) > adaptiveWarningMs).length
     const errorRatio = errorCount / driftPoints.length
 
-    overallSeverity = driftSeverity(medianDrift)
+    overallSeverity = driftSeverity(medianDrift, toleranceBpm)
 
     // Escalate if >30% of beats have error-level drift
     if (errorRatio > 0.3 && overallSeverity !== 'error') {

@@ -61,6 +61,7 @@ export interface RawBeatResult {
   avgConfidence: number       // 0-1
   sampleRate: number
   duration: number
+  kickOnsets?: number[]       // Bass-Band-Onset-Zeitstempel in Sekunden (Kick-Drum-Positionen)
 }
 
 // --- Key Analysis ---

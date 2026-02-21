@@ -95,12 +95,12 @@ describe('checkBeatgrid', () => {
     expect(result.overallSeverity).toBe('warning')
   })
 
-  it('35ms drift → warning severity (unter neuer 50ms-Grenze)', () => {
+  it('20ms drift → warning severity (adaptive: 128 BPM → okMs=10, warningMs=35)', () => {
     const track = makeTrack()
     const interval = 60 / 128
     const beats: number[] = []
     for (let t = 0; t < 180; t += interval) {
-      beats.push(t + 0.035) // 35ms drift
+      beats.push(t + 0.020) // 20ms drift
     }
     const raw = makeRawBeat({ beatTimestamps: beats })
     const result = checkBeatgrid(track, raw)
@@ -108,12 +108,12 @@ describe('checkBeatgrid', () => {
     expect(result.overallSeverity).toBe('warning')
   })
 
-  it('55ms drift → error severity (über 50ms-Grenze)', () => {
+  it('40ms drift → error severity (adaptive: 128 BPM → warningMs=35)', () => {
     const track = makeTrack()
     const interval = 60 / 128
     const beats: number[] = []
     for (let t = 0; t < 180; t += interval) {
-      beats.push(t + 0.055) // 55ms drift
+      beats.push(t + 0.040) // 40ms drift
     }
     const raw = makeRawBeat({ beatTimestamps: beats })
     const result = checkBeatgrid(track, raw)
@@ -220,6 +220,40 @@ describe('checkBeatgrid', () => {
 
     expect(result.beatsMatched).toBeGreaterThan(0)
     expect(result.avgDriftMs).toBeLessThan(5)
+  })
+
+  it('30 BPM Grid: 15ms Drift ist ok (adaptive Toleranz)', () => {
+    const track = makeTrack({
+      tempoMarkers: [{ position: 0, bpm: 30, meter: '4/4', beat: 1 }],
+      bpm: 30,
+    })
+    const interval = 60 / 30
+    const beats: number[] = []
+    for (let t = 0; t < 180; t += interval) {
+      beats.push(t + 0.015) // 15ms drift
+    }
+    const raw = makeRawBeat({ beatTimestamps: beats, duration: 180 })
+    const result = checkBeatgrid(track, raw)
+
+    // Bei 30 BPM: intervalMs=2000, okMs=max(10,30)=30 → 15ms < 30ms → ok
+    expect(result.overallSeverity).toBe('ok')
+  })
+
+  it('240 BPM Grid: 5ms Drift ist ok (adaptive Toleranz)', () => {
+    const track = makeTrack({
+      tempoMarkers: [{ position: 0, bpm: 240, meter: '4/4', beat: 1 }],
+      bpm: 240,
+    })
+    const interval = 60 / 240
+    const beats: number[] = []
+    for (let t = 0; t < 180; t += interval) {
+      beats.push(t + 0.005) // 5ms drift
+    }
+    const raw = makeRawBeat({ beatTimestamps: beats, duration: 180 })
+    const result = checkBeatgrid(track, raw)
+
+    // Bei 240 BPM: intervalMs=250, okMs=max(10,3.75)=10 → 5ms < 10ms → ok
+    expect(result.overallSeverity).toBe('ok')
   })
 })
 

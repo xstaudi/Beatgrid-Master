@@ -1,6 +1,7 @@
 import type { BeatRequest, BeatResponse, BeatAnalysisPhase, RawBeatResult } from '@/types/audio'
 import { getAubio, releaseAubio } from '@/wasm/aubio'
 import { SEGMENT_DURATION_SECONDS } from '@/features/bpm/constants'
+import { computeKickOnsets } from '@/lib/dsp/kick-onset'
 
 const HOP_SIZE = 256
 const BUF_SIZE = 1024
@@ -67,6 +68,10 @@ async function analyze(trackId: string, samples: Float32Array, sampleRate: numbe
       ? confidences.reduce((a, b) => a + b, 0) / confidences.length
       : 0
 
+    // Kick-Drum-Onsets aus Tieffrequenz-Energie (robuster Downbeat-Kandidat)
+    postProgress(trackId, 'analyzing', 92)
+    const kickOnsets = computeKickOnsets(samples, sampleRate)
+
     const result: RawBeatResult = {
       trackId,
       beatTimestamps,
@@ -75,6 +80,7 @@ async function analyze(trackId: string, samples: Float32Array, sampleRate: numbe
       avgConfidence,
       sampleRate,
       duration,
+      kickOnsets,
     }
 
     postProgress(trackId, 'done', 100)

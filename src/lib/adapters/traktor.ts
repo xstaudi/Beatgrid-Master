@@ -72,9 +72,19 @@ function parseTempoMarkers(entry: Element): TempoMarker[] {
   const bpm = safeParseFloat(attr(tempo, 'BPM'))
   if (bpm == null || bpm <= 0) return []
 
+  // Grid-Position aus CUE_V2 TYPE=4 lesen (Traktor Grid Marker)
+  let gridPosition = 0
+  const gridCue = Array.from(entry.querySelectorAll('CUE_V2')).find(
+    (cue) => attr(cue, 'TYPE') === '4',
+  )
+  if (gridCue) {
+    const startMs = safeParseFloat(attr(gridCue, 'START'))
+    if (startMs != null) gridPosition = startMs / 1000
+  }
+
   return [
     {
-      position: 0,
+      position: gridPosition,
       bpm: Math.round(bpm * 100) / 100, // Round to 2 decimals
       meter: '4/4',
       beat: 1,

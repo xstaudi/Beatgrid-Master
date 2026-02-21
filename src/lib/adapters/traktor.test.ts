@@ -74,6 +74,23 @@ describe('TraktorAdapter', () => {
     expect(track.bitrate).toBeNull()
   })
 
+  it('parses TempoMarker position from CUE_V2[TYPE=4]', () => {
+    const result = adapter.parse(fixtureNml)
+    const track = result.tracks[0] // abc123 hat CUE_V2 TYPE=4 START=123.5
+
+    expect(track.tempoMarkers).toHaveLength(1)
+    expect(track.tempoMarkers[0].position).toBeCloseTo(0.1235, 4) // 123.5ms → 0.1235s
+    expect(track.tempoMarkers[0].bpm).toBe(126.12)
+  })
+
+  it('defaults TempoMarker position to 0 when no CUE_V2[TYPE=4]', () => {
+    const result = adapter.parse(fixtureNml)
+    const track = result.tracks[1] // def456 hat kein CUE_V2
+
+    expect(track.tempoMarkers).toHaveLength(1)
+    expect(track.tempoMarkers[0].position).toBe(0)
+  })
+
   it('parses CUE_V2 elements', () => {
     const result = adapter.parse(fixtureNml)
     const track = result.tracks[0]

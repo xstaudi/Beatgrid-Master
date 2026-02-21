@@ -28,7 +28,7 @@ export function applyBeatgridFix(
       tempo.setAttribute('Inizio', marker.position.toFixed(3))
       tempo.setAttribute('Bpm', marker.bpm.toFixed(2))
       tempo.setAttribute('Metro', marker.meter)
-      tempo.setAttribute('Battuta', String(marker.beat))
+      tempo.setAttribute('Battito', String(marker.beat))
       el.appendChild(tempo)
     }
   } else {

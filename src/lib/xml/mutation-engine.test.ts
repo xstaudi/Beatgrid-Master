@@ -79,6 +79,32 @@ describe('Mutation Engine', () => {
       expect(tempo.getAttribute('Inizio')).toBe('0.145')
     })
 
+    it('should write Battito attribute when full tempoMarkers provided', () => {
+      const ops: FixOperation[] = [
+        {
+          kind: 'beatgrid',
+          trackId: 'rb-1',
+          sourceId: '1',
+          newDownbeatSec: 0.1,
+          tempoMarkers: [
+            { position: 0.1, bpm: 128, meter: '4/4', beat: 1 },
+            { position: 60.0, bpm: 130, meter: '4/4', beat: 3 },
+          ],
+        },
+      ]
+      const result = applyFixes(rbXml, ops, 'rekordbox')
+      expect(result.appliedCount).toBe(1)
+
+      const doc = resultDoc(result.xmlContent)
+      const track = doc.querySelector('TRACK[TrackID="1"]')!
+      const tempos = track.querySelectorAll('TEMPO')
+      expect(tempos).toHaveLength(2)
+      expect(tempos[0].getAttribute('Battito')).toBe('1')
+      expect(tempos[1].getAttribute('Battito')).toBe('3')
+      expect(tempos[0].getAttribute('Inizio')).toBe('0.100')
+      expect(tempos[1].getAttribute('Inizio')).toBe('60.000')
+    })
+
     it('should remove duplicate track and decrement Entries', () => {
       const ops: FixOperation[] = [
         { kind: 'duplicate-remove', trackId: 'rb-4', sourceId: '4', groupId: 'test' },

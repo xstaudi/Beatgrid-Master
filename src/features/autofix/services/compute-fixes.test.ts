@@ -262,6 +262,92 @@ describe('computeFixes', () => {
       expect(fixes[0].status).toBe('pending')
     })
 
+    it('should use median drift (robust gegen Ausreisser)', () => {
+      const track = makeTrack()
+      const bgResult: BeatgridCheckResult = {
+        type: 'beatgrid',
+        tracks: [
+          {
+            trackId: 'rb-1',
+            overallSeverity: 'error',
+            confidence: 80,
+            driftPoints: [
+              { beatIndex: 0, positionMs: 100, driftMs: 8, severity: 'error' },
+              { beatIndex: 1, positionMs: 600, driftMs: 10, severity: 'error' },
+              { beatIndex: 2, positionMs: 1100, driftMs: 12, severity: 'error' },
+              { beatIndex: 3, positionMs: 1600, driftMs: 16, severity: 'error' },
+              { beatIndex: 4, positionMs: 2100, driftMs: 200, severity: 'error' },
+            ],
+            avgDriftMs: 49.2,
+            maxDriftMs: 200,
+            beatsAnalyzed: 100,
+            beatsMatched: 85,
+            isVariableBpm: false,
+          },
+        ],
+        libraryStats: {
+          totalTracks: 1,
+          tracksOk: 0,
+          tracksWithWarnings: 0,
+          tracksWithErrors: 1,
+          tracksSkipped: 0,
+          avgConfidence: 80,
+        },
+      }
+
+      const fixes = computeFixes([track], makeResults([bgResult]))
+      expect(fixes).toHaveLength(1)
+      // Median von [8, 10, 12, 16, 200] = 12ms (nicht Average 49.2ms)
+      expect(fixes[0].operation.newDownbeatSec).toBeCloseTo(0.1 + 12 / 1000, 3)
+    })
+
+    it('dedupliziert Beatgrid-Fix wenn Drift- und Generierungs-Fix vorhanden (generierter gewinnt)', () => {
+      const track = makeTrack()
+      const bgResult: BeatgridCheckResult = {
+        type: 'beatgrid',
+        tracks: [
+          {
+            trackId: 'rb-1',
+            overallSeverity: 'error',
+            confidence: 80,
+            driftPoints: [
+              { beatIndex: 0, positionMs: 100, driftMs: 10, severity: 'error' },
+            ],
+            avgDriftMs: 10,
+            maxDriftMs: 10,
+            beatsAnalyzed: 100,
+            beatsMatched: 85,
+            isVariableBpm: false,
+          },
+        ],
+        libraryStats: {
+          totalTracks: 1,
+          tracksOk: 0,
+          tracksWithWarnings: 0,
+          tracksWithErrors: 1,
+          tracksSkipped: 0,
+          avgConfidence: 80,
+        },
+      }
+      // Zusätzlich generiertes Grid für denselben Track
+      const generatedBeatgrids = new Map([
+        ['rb-1', {
+          tempoMarkers: [{ position: 0.05, bpm: 128, meter: '4/4' as const, beat: 1 as const }],
+          method: 'static' as const,
+          isVariableBpm: false,
+          confidence: 90,
+          medianBpm: 128,
+          phaseOffsetSec: 0.05,
+        }],
+      ])
+
+      const fixes = computeFixes([track], makeResults([bgResult]), generatedBeatgrids)
+      // Nur EIN Beatgrid-Fix, kein Duplikat
+      expect(fixes.filter((f) => f.operation.kind === 'beatgrid')).toHaveLength(1)
+      // Generierter Fix gewinnt (phaseOffsetSec=0.05, nicht Drift-Korrektur 0.110)
+      expect(fixes[0].operation.newDownbeatSec).toBeCloseTo(0.05, 3)
+    })
+
     it('should NOT create fix for variable BPM beatgrid', () => {
       const track = makeTrack()
       const bgResult: BeatgridCheckResult = {
