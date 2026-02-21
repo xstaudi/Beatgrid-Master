@@ -1,5 +1,4 @@
 import { InfoItem } from './InfoItem'
-import { WaveformPlayer } from '@/features/waveform'
 import { formatDuration } from '@/lib/utils/format'
 import type { TrackClippingResult } from '@/types/analysis'
 import type { PcmData } from '@/types/audio'
@@ -12,19 +11,13 @@ interface ClippingTabProps {
   duration: number
 }
 
-export function ClippingTab({ result, pcmData, audioFileHandle, duration }: ClippingTabProps) {
+export function ClippingTab({ result }: ClippingTabProps) {
   if (result.skipReason) {
     return <p className="text-sm text-muted-foreground">Skipped: {result.skipReason}</p>
   }
 
   return (
     <div className="space-y-4 pr-4">
-      <WaveformPlayer
-        pcmData={pcmData}
-        audioFileHandle={audioFileHandle}
-        duration={duration}
-        clipRegions={result.regions}
-      />
       <div className="grid grid-cols-2 gap-3">
         <InfoItem label="Peak Level" value={`${result.peakLevelDb.toFixed(1)} dBFS`} />
         <InfoItem label="Clip Regions" value={String(result.clipCount)} />

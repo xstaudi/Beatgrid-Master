@@ -1,10 +1,17 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Marcellus, Josefin_Sans } from 'next/font/google'
+import { Geist_Mono } from 'next/font/google'
 import './globals.css'
 import { AppHeader } from '@/components/layout/AppHeader'
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
+const marcellus = Marcellus({
+  weight: '400',
+  variable: '--font-marcellus',
+  subsets: ['latin'],
+})
+
+const josefinSans = Josefin_Sans({
+  variable: '--font-josefin-sans',
   subsets: ['latin'],
 })
 
@@ -25,7 +32,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${marcellus.variable} ${josefinSans.variable} ${geistMono.variable} antialiased`}>
         <AppHeader />
         {children}
       </body>

@@ -3,7 +3,9 @@
     "allow": [
       "Bash(cd:*)",
       "WebSearch",
-      "mcp__plugin_serena_serena__read_file"
+      "mcp__plugin_serena_serena__read_file",
+      "mcp__plugin_serena_serena__list_dir",
+      "Bash(head:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -23,7 +23,9 @@ export const TrackTableRow = memo(function TrackTableRow({
   return (
     <TableRow
       tabIndex={0}
-      className="cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className={`cursor-pointer hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+        row.overallSeverity === 'error' ? 'bg-destructive/5' : row.overallSeverity === 'warning' ? 'bg-chart-5/5' : ''
+      }`}
       onClick={() => onSelect(row.trackId)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {

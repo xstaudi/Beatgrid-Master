@@ -59,6 +59,21 @@ npm run dev          # Next.js Dev Server (localhost:3000)
 | `src/workers/pipeline.ts` | Worker Pipeline Orchestrator |
 | `src/wasm/loader.ts` | WASM Module Lazy Loader |
 
+## Visual Development
+
+### Design Principles
+- Art Deco Design System in `.claude/context/design-principles.md`
+- Warm Kupfer Night Mode Palette
+- Bei visuellen Aenderungen IMMER gegen Design Principles pruefen
+
+### Quick Visual Check
+NACH jeder Frontend-Aenderung:
+1. Betroffene Pages identifizieren
+2. Via Browser navigieren und visuell pruefen
+3. Screenshot bei Desktop Viewport (1440px)
+4. Gegen Design Principles vergleichen
+5. Console auf Fehler pruefen
+
 ## Architektur-Prinzipien
 
 | Prinzip | Regel |

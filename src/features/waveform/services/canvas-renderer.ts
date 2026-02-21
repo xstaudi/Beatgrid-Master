@@ -10,11 +10,11 @@ import type { WaveformBandData } from '../types'
 import type { BeatDriftPoint, ClipRegion } from '@/types/analysis'
 import type { TempoMarker } from '@/types/track'
 
-// Rekordbox-Referenzfarben (Canvas kann keine CSS-Variablen lesen)
-const COLOR_LOW = { r: 0, g: 212, b: 255 }     // Cyan
-const COLOR_MID = { r: 91, g: 63, b: 255 }      // Violet
-const COLOR_HIGH = { r: 224, g: 224, b: 255 }    // White/Blue
-const BG_COLOR = '#0A0A0F'
+// Art Deco Kupfer-Palette (Canvas kann keine CSS-Variablen lesen)
+const COLOR_LOW = { r: 193, g: 125, b: 83 }     // Kupfer #c17d53
+const COLOR_MID = { r: 126, g: 81, b: 56 }      // Dunkelbraun #7e5138
+const COLOR_HIGH = { r: 242, g: 240, b: 228 }    // Champagne Cream #F2F0E4
+const BG_COLOR = '#1d1511'
 const PLAYHEAD_COLOR = '#FFFFFF'
 
 interface MinMaxBucket { min: number; max: number }
@@ -78,7 +78,7 @@ export function renderWaveformCanvas(
     }
   } else if (fallbackBuckets) {
     const barWidth = width / fallbackBuckets.length
-    ctx.fillStyle = 'rgba(0, 212, 255, 0.5)'
+    ctx.fillStyle = 'rgba(193, 125, 83, 0.5)'
     for (let i = 0; i < fallbackBuckets.length; i++) {
       const { min, max } = fallbackBuckets[i]
       const x = i * barWidth

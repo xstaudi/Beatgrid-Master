@@ -1,7 +1,5 @@
 import { SeverityBadge } from '../SeverityBadge'
-import { DriftGraph } from '../DriftGraph'
 import { InfoItem } from './InfoItem'
-import { WaveformPlayer } from '@/features/waveform'
 import { BeatgridEditor } from '@/features/beatgrid/components/BeatgridEditor'
 import type { TrackBeatgridResult } from '@/types/analysis'
 import type { PcmData } from '@/types/audio'
@@ -71,33 +69,9 @@ export function BeatgridTab({
     )
   }
 
-  // VERIFIKATIONS-Modus: Tracks mit vorhandenem Grid
+  // VERIFIKATIONS-Modus: Nur Info-Items (Waveform + DriftGraph im Modal linke Spalte)
   return (
     <div className="space-y-4 pr-4">
-      {/* Gespeichertes Grid */}
-      <div>
-        <p className="text-xs text-muted-foreground mb-1">Gespeichertes Grid</p>
-        <WaveformPlayer
-          pcmData={pcmData}
-          audioFileHandle={audioFileHandle}
-          duration={duration}
-          tempoMarkers={tempoMarkers}
-          zoomEnabled
-        />
-      </div>
-
-      {/* Erkannte Beats */}
-      <div>
-        <p className="text-xs text-muted-foreground mb-1">Erkannte Beats</p>
-        <WaveformPlayer
-          pcmData={pcmData}
-          duration={duration}
-          beatDriftPoints={result.driftPoints}
-          zoomEnabled
-        />
-      </div>
-
-      <DriftGraph driftPoints={result.driftPoints} duration={duration} />
       <div className="grid grid-cols-2 gap-3">
         <InfoItem label="Avg Drift" value={`${result.avgDriftMs.toFixed(1)}ms`} />
         <InfoItem label="Max Drift" value={`${result.maxDriftMs.toFixed(1)}ms`} />
