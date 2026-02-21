@@ -20,6 +20,7 @@ export interface PcmData {
   duration: number
   originalSampleRate: number
   originalChannels: number
+  truePeakLinear?: number   // Pre-mix true peak aus allen Kanaelen (vor stereoToMono)
 }
 
 // --- Worker Message Protocol (Discriminated Unions) ---
@@ -91,7 +92,7 @@ export interface RawKeyResult {
 export type ClipAnalysisPhase = 'analyzing' | 'done'
 
 export type ClipRequest =
-  | { type: 'analyze'; trackId: string; samples: Float32Array; sampleRate: number }
+  | { type: 'analyze'; trackId: string; samples: Float32Array; sampleRate: number; truePeakLinear?: number }
   | { type: 'ping' }
   | { type: 'terminate' }
 

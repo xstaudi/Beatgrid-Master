@@ -147,6 +147,7 @@ interface ClipQueueItem {
   trackId: string
   samples: Float32Array
   sampleRate: number
+  truePeakLinear?: number
 }
 
 export interface ClipPipelineCallbacks {
@@ -197,8 +198,8 @@ export class ClipPipeline {
     this.idleWorkers.add(0)
   }
 
-  enqueue(trackId: string, samples: Float32Array, sampleRate: number): void {
-    this.queue.push({ trackId, samples, sampleRate })
+  enqueue(trackId: string, samples: Float32Array, sampleRate: number, truePeakLinear?: number): void {
+    this.queue.push({ trackId, samples, sampleRate, truePeakLinear })
     this.dispatchNext()
   }
 
@@ -230,6 +231,7 @@ export class ClipPipeline {
         trackId: item.trackId,
         samples: item.samples,
         sampleRate: item.sampleRate,
+        truePeakLinear: item.truePeakLinear,
       },
       [item.samples.buffer],
     )

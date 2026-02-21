@@ -10,10 +10,10 @@ import type { WaveformBandData, BpmSegment } from '../types'
 import type { BeatDriftPoint, ClipRegion } from '@/types/analysis'
 import type { TempoMarker } from '@/types/track'
 
-// Art Deco Kupfer-Palette (Canvas kann keine CSS-Variablen lesen)
-const COLOR_LOW = { r: 193, g: 125, b: 83 }     // Kupfer #c17d53
-const COLOR_MID = { r: 126, g: 81, b: 56 }      // Dunkelbraun #7e5138
-const COLOR_HIGH = { r: 242, g: 240, b: 228 }    // Champagne Cream #F2F0E4
+// CDJ-3000 3-Band Waveform Palette (siehe design-principles.md → Waveform)
+const COLOR_LOW = { r: 228, g: 150, b: 30 }      // Amber-Orange #E4961E (Bass)
+const COLOR_MID = { r: 230, g: 226, b: 216 }     // Warm White #E6E2D8 (Mids)
+const COLOR_HIGH = { r: 75, g: 140, b: 202 }     // CDJ Blue #4B8CCA (Highs)
 const BG_COLOR = '#1d1511'
 const PLAYHEAD_COLOR = '#FFFFFF'
 
@@ -63,34 +63,50 @@ export function renderWaveformCanvas(
     const visibleBuckets = buckets.slice(startBucket, endBucket)
     const barWidth = visibleBuckets.length > 0 ? width / visibleBuckets.length : 1
 
+    const playProgress = currentTime / effectiveDuration
+
     for (let i = 0; i < visibleBuckets.length; i++) {
       const { min, max, low, mid, high } = visibleBuckets[i]
       const x = i * barWidth
 
-      const r = low * COLOR_LOW.r + mid * COLOR_MID.r + high * COLOR_HIGH.r
-      const g = low * COLOR_LOW.g + mid * COLOR_MID.g + high * COLOR_HIGH.g
-      const b = low * COLOR_LOW.b + mid * COLOR_MID.b + high * COLOR_HIGH.b
+      // Kontrast-verstaerkte Farbmischung: Power-Kurve macht dominantes Band bold (CDJ-3000 Style)
+      const pL = low * low * low
+      const pM = mid * mid * mid
+      const pH = high * high * high
+      const total = pL + pM + pH
+      let r: number, g: number, b: number
+      if (total > 0) {
+        const wL = pL / total
+        const wM = pM / total
+        const wH = pH / total
+        r = wL * COLOR_LOW.r + wM * COLOR_MID.r + wH * COLOR_HIGH.r
+        g = wL * COLOR_LOW.g + wM * COLOR_MID.g + wH * COLOR_HIGH.g
+        b = wL * COLOR_LOW.b + wM * COLOR_MID.b + wH * COLOR_HIGH.b
+      } else {
+        r = COLOR_MID.r; g = COLOR_MID.g; b = COLOR_MID.b
+      }
 
-      const playProgress = currentTime / effectiveDuration
       const bucketProgress = (startBucket + i) / buckets.length
       const alpha = bucketProgress <= playProgress ? 1.0 : 0.7
 
       ctx.fillStyle = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${alpha})`
       const topHeight = Math.max(0.5, Math.abs(max) * centerY)
       const bottomHeight = Math.max(0.5, Math.abs(min) * centerY)
-      ctx.fillRect(x, centerY - topHeight, Math.max(1, barWidth - 0.5), topHeight)
-      ctx.fillRect(x, centerY, Math.max(1, barWidth - 0.5), bottomHeight)
+      const w = Math.ceil(barWidth)
+      ctx.fillRect(x, centerY - topHeight, w, topHeight)
+      ctx.fillRect(x, centerY, w, bottomHeight)
     }
   } else if (fallbackBuckets) {
     const barWidth = width / fallbackBuckets.length
-    ctx.fillStyle = 'rgba(193, 125, 83, 0.5)'
+    ctx.fillStyle = 'rgba(228, 150, 30, 0.5)'
     for (let i = 0; i < fallbackBuckets.length; i++) {
       const { min, max } = fallbackBuckets[i]
       const x = i * barWidth
       const topHeight = Math.max(0.5, Math.abs(max) * centerY)
       const bottomHeight = Math.max(0.5, Math.abs(min) * centerY)
-      ctx.fillRect(x, centerY - topHeight, Math.max(1, barWidth - 0.5), topHeight)
-      ctx.fillRect(x, centerY, Math.max(1, barWidth - 0.5), bottomHeight)
+      const w = Math.ceil(barWidth)
+      ctx.fillRect(x, centerY - topHeight, w, topHeight)
+      ctx.fillRect(x, centerY, w, bottomHeight)
     }
   }
 
@@ -101,13 +117,7 @@ export function renderWaveformCanvas(
 
   // Clipping regions
   if (clipRegions && clipRegions.length > 0) {
-    ctx.fillStyle = 'rgba(255, 50, 50, 0.25)'
-    for (const region of clipRegions) {
-      const x = ((region.startTime - visibleStart) / visibleDuration) * width
-      const w = Math.max(1, ((region.endTime - region.startTime) / visibleDuration) * width)
-      if (x + w < 0 || x > width) continue
-      ctx.fillRect(x, 0, w, height)
-    }
+    renderClipRegions(ctx, clipRegions, width, height, visibleStart, visibleDuration)
   }
 
   // Rekordbox-style Beat Grid
@@ -276,6 +286,38 @@ function renderBpmSegments(
       ctx.textBaseline = 'middle'
       ctx.fillText(label, pillX + pillW / 2, pillY + pillH / 2)
     }
+  }
+}
+
+function renderClipRegions(
+  ctx: CanvasRenderingContext2D,
+  regions: { startTime: number; endTime: number }[],
+  width: number, height: number,
+  visibleStart: number, visibleDuration: number,
+): void {
+  const INDICATOR_H = 4  // Roter Balken oben + unten
+
+  for (const region of regions) {
+    const x = ((region.startTime - visibleStart) / visibleDuration) * width
+    const w = Math.max(2, ((region.endTime - region.startTime) / visibleDuration) * width)
+    if (x + w < 0 || x > width) continue
+
+    // Halbtransparente Fläche
+    ctx.fillStyle = 'rgba(255, 30, 30, 0.18)'
+    ctx.fillRect(x, 0, w, height)
+
+    // Roter Indikator-Balken oben + unten (wie CDJ Clip-Warnung)
+    ctx.fillStyle = 'rgba(255, 40, 40, 0.90)'
+    ctx.fillRect(x, 0, w, INDICATOR_H)
+    ctx.fillRect(x, height - INDICATOR_H, w, INDICATOR_H)
+
+    // Linke Kante (harte Clip-Grenze)
+    ctx.strokeStyle = 'rgba(255, 60, 60, 0.85)'
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.moveTo(x, 0)
+    ctx.lineTo(x, height)
+    ctx.stroke()
   }
 }
 

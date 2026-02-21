@@ -38,6 +38,16 @@ async function decode(trackId: string, audioData: ArrayBuffer, codec: AudioCodec
 
     // Phase 3: Post-processing (mono + downsample)
     postProgress(trackId, 'processing', 75)
+
+    // True Peak vor stereoToMono berechnen (Averaging zerstoert sonst Peak-Information)
+    const truePeakLinear = result.channelData.reduce((max, ch) => {
+      for (let i = 0; i < ch.length; i++) {
+        const abs = Math.abs(ch[i])
+        if (abs > max) max = abs
+      }
+      return max
+    }, 0)
+
     const mono = stereoToMono(result.channelData)
 
     postProgress(trackId, 'processing', 85)
@@ -49,6 +59,7 @@ async function decode(trackId: string, audioData: ArrayBuffer, codec: AudioCodec
       duration: resampled.length / TARGET_SAMPLE_RATE,
       originalSampleRate: result.sampleRate,
       originalChannels: result.channelData.length,
+      truePeakLinear,
     }
 
     postProgress(trackId, 'processing', 100)

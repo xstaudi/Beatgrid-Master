@@ -9,11 +9,11 @@ function postProgress(trackId: string, phase: ClipAnalysisPhase, percent: number
   post({ type: 'progress', trackId, phase, percent })
 }
 
-async function analyze(trackId: string, samples: Float32Array, sampleRate: number) {
+async function analyze(trackId: string, samples: Float32Array, sampleRate: number, truePeakLinear?: number) {
   try {
     postProgress(trackId, 'analyzing', 10)
 
-    let peakLevel = 0
+    let monoPeak = 0
     let consecutiveClips = 0
     let clipRegionStart = -1
     const regions: { startTime: number; endTime: number; duration: number }[] = []
@@ -23,7 +23,7 @@ async function analyze(trackId: string, samples: Float32Array, sampleRate: numbe
     for (let i = 0; i < samples.length; i++) {
       const absVal = Math.abs(samples[i])
 
-      if (absVal > peakLevel) peakLevel = absVal
+      if (absVal > monoPeak) monoPeak = absVal
 
       if (absVal >= CLIP_THRESHOLD) {
         consecutiveClips++
@@ -55,14 +55,16 @@ async function analyze(trackId: string, samples: Float32Array, sampleRate: numbe
       regions.push({ startTime, endTime, duration: endTime - startTime })
     }
 
-    const peakLevelDb = peakLevel > 0 ? 20 * Math.log10(peakLevel) : -Infinity
+    // True Peak (pre-mix) bevorzugen fuer korrekte Peak-Anzeige
+    const reportedPeak = truePeakLinear ?? monoPeak
+    const peakLevelDb = reportedPeak > 0 ? 20 * Math.log10(reportedPeak) : -Infinity
 
     const result: RawClipResult = {
       trackId,
       hasClipping: regions.length > 0,
       clipCount: regions.length,
       totalClippedSamples,
-      peakLevelLinear: peakLevel,
+      peakLevelLinear: reportedPeak,
       peakLevelDb,
       regions,
     }
@@ -78,7 +80,7 @@ self.onmessage = (event: MessageEvent<ClipRequest>) => {
   const msg = event.data
   switch (msg.type) {
     case 'analyze':
-      analyze(msg.trackId, msg.samples, msg.sampleRate)
+      analyze(msg.trackId, msg.samples, msg.sampleRate, msg.truePeakLinear)
       break
     case 'ping':
       post({ type: 'ready' })

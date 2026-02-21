@@ -166,7 +166,7 @@ export function useAnalysisPipelines() {
       for (const trackId of audioTrackIds) {
         const pcm = cache.get(trackId)
         if (!pcm) continue
-        clipPipeline.enqueue(trackId, pcm.samples.slice(), pcm.sampleRate)
+        clipPipeline.enqueue(trackId, pcm.samples.slice(), pcm.sampleRate, pcm.truePeakLinear)
       }
     }
 
