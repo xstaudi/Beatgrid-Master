@@ -1,25 +1,60 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useMemo } from 'react'
 import { TableRow, TableCell } from '@/components/ui/table'
 import { SeverityBadge } from './SeverityBadge'
+import { IssueChips } from './IssueChips'
 import type { UnifiedTrackRow } from '@/features/report'
 import type { CheckId } from '@/types/analysis'
-import { formatConfidence, confidenceColor } from '@/lib/utils'
+import type { Severity } from '@/types/track'
+import { useFixStore } from '@/stores/fix-store'
 
 interface TrackTableRowProps {
   row: UnifiedTrackRow
   index: number
   onSelect: (trackId: string) => void
-  visibleChecks: (checkId: CheckId) => boolean
 }
+
+const CHECK_KEYS: Array<{ check: CheckId; key: keyof UnifiedTrackRow }> = [
+  { check: 'metadata', key: 'metadata' },
+  { check: 'beatgrid', key: 'beatgrid' },
+  { check: 'bpm', key: 'bpm' },
+  { check: 'key', key: 'key' },
+  { check: 'clipping', key: 'clipping' },
+  { check: 'duplicates', key: 'duplicate' },
+]
 
 export const TrackTableRow = memo(function TrackTableRow({
   row,
   index,
   onSelect,
-  visibleChecks,
 }: TrackTableRowProps) {
+  const hasPending = useFixStore((s) =>
+    s.fixes.some((f) => f.operation.trackId === row.trackId && f.status === 'pending'),
+  )
+  const hasApproved = useFixStore((s) => {
+    let total = 0
+    let nonPending = 0
+    for (const f of s.fixes) {
+      if (f.operation.trackId === row.trackId) {
+        total++
+        if (f.status !== 'pending') nonPending++
+      }
+    }
+    return total > 0 && nonPending === total
+  })
+
+  const issues = useMemo(() => {
+    const result: Array<{ check: CheckId; severity: Severity }> = []
+    for (const { check, key } of CHECK_KEYS) {
+      const data = row[key] as { overallSeverity?: Severity } | undefined
+      if (data?.overallSeverity && data.overallSeverity !== 'ok') {
+        result.push({ check, severity: data.overallSeverity })
+      }
+    }
+    return result
+  }, [row])
+
   return (
     <TableRow
       tabIndex={0}
@@ -35,94 +70,24 @@ export const TrackTableRow = memo(function TrackTableRow({
       }}
     >
       <TableCell className="text-muted-foreground w-12">{index + 1}</TableCell>
-      <TableCell className="font-medium max-w-[200px] truncate">{row.track?.title || '\u2014'}</TableCell>
-      <TableCell className="max-w-[150px] truncate hidden md:table-cell">{row.track?.artist || '\u2014'}</TableCell>
-      <TableCell><SeverityBadge severity={row.overallSeverity} /></TableCell>
-
-      {visibleChecks('metadata') && (
-        <>
-          <TableCell className="hidden md:table-cell">
-            {row.metadata ? (
-              <div className="flex items-center gap-2">
-                <div className="h-2 w-12 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className={`h-full rounded-full ${
-                      row.metadata.completenessScore >= 80 ? 'bg-chart-2'
-                        : row.metadata.completenessScore >= 50 ? 'bg-chart-5'
-                        : 'bg-destructive'
-                    }`}
-                    style={{ width: `${row.metadata.completenessScore}%` }}
-                  />
-                </div>
-                <span className="text-xs font-mono text-muted-foreground">{row.metadata.completenessScore}%</span>
-              </div>
-            ) : '\u2014'}
-          </TableCell>
-          <TableCell className="text-right font-mono hidden lg:table-cell">
-            {row.metadata ? row.metadata.fields.filter((f) => f.severity !== 'ok').length : '\u2014'}
-          </TableCell>
-        </>
-      )}
-
-      {visibleChecks('beatgrid') && (
-        <>
-          <TableCell className="font-mono hidden md:table-cell">
-            {row.beatgrid?.skipReason ? '\u2014' : `${row.beatgrid?.avgDriftMs.toFixed(1)}ms`}
-          </TableCell>
-          <TableCell className="font-mono hidden lg:table-cell">
-            {row.beatgrid?.skipReason ? '\u2014' : (
-              <span className={confidenceColor(row.beatgrid?.confidence ?? 0)}>
-                {formatConfidence(row.beatgrid?.confidence ?? 0)}
-              </span>
-            )}
-          </TableCell>
-        </>
-      )}
-
-      {visibleChecks('bpm') && (
-        <>
-          <TableCell className="font-mono hidden md:table-cell">
-            {row.bpm?.skipReason
-              ? '\u2014'
-              : `${row.bpm?.storedBpm?.toFixed(1) ?? '?'} / ${row.bpm?.detectedBpm?.toFixed(1) ?? '?'}`}
-          </TableCell>
-          <TableCell className="font-mono hidden lg:table-cell">
-            {row.bpm?.skipReason ? '\u2014' : row.bpm?.bpmDelta != null ? `${row.bpm.bpmDelta > 0 ? '+' : ''}${row.bpm.bpmDelta.toFixed(2)}` : '\u2014'}
-          </TableCell>
-        </>
-      )}
-
-      {visibleChecks('key') && (
-        <>
-          <TableCell className="hidden md:table-cell">
-            {row.key ? (
-              <span className={row.key.match === 'match' ? 'text-chart-2' : row.key.match === 'mismatch' ? 'text-destructive' : 'text-chart-5'}>
-                {row.key.match}
-              </span>
-            ) : '\u2014'}
-          </TableCell>
-          <TableCell className="font-mono hidden lg:table-cell">
-            {row.key?.detectedKey ?? '\u2014'}
-          </TableCell>
-        </>
-      )}
-
-      {visibleChecks('clipping') && (
-        <>
-          <TableCell className="font-mono hidden md:table-cell">
-            {row.clipping?.skipReason ? '\u2014' : `${row.clipping?.peakLevelDb.toFixed(1)} dB`}
-          </TableCell>
-          <TableCell className="font-mono hidden lg:table-cell">
-            {row.clipping?.skipReason ? '\u2014' : row.clipping?.clipCount ?? 0}
-          </TableCell>
-        </>
-      )}
-
-      {visibleChecks('duplicates') && (
-        <TableCell className="font-mono hidden md:table-cell">
-          {row.duplicate?.duplicateGroupId ? 'Yes' : '\u2014'}
-        </TableCell>
-      )}
+      <TableCell className="max-w-[280px]">
+        <div className="truncate font-medium">{row.track?.title || '\u2014'}</div>
+        <div className="truncate text-xs text-muted-foreground">{row.track?.artist || '\u2014'}</div>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <SeverityBadge severity={row.overallSeverity} />
+          {hasPending && (
+            <span className="text-[10px] font-mono text-primary" title="Ausstehende Fixes">{'\u25CF'}</span>
+          )}
+          {!hasPending && hasApproved && (
+            <span className="text-[10px] font-mono text-chart-2" title="Fixes bestaetigt">{'\u2713'}</span>
+          )}
+        </div>
+      </TableCell>
+      <TableCell>
+        <IssueChips issues={issues} />
+      </TableCell>
     </TableRow>
   )
 })

@@ -1,13 +1,19 @@
 import type { Severity } from '@/types/track'
 import { Badge } from '@/components/ui/badge'
 
+const LABELS: Record<Severity, string> = {
+  ok: 'Ready',
+  warning: 'Review',
+  error: 'Fix',
+}
+
 interface SeverityBadgeProps {
   severity: Severity
   count?: number
 }
 
 export function SeverityBadge({ severity, count }: SeverityBadgeProps) {
-  const label = count != null ? `${count} ${severity}` : severity
+  const label = count != null ? `${count} ${LABELS[severity]}` : LABELS[severity]
 
   switch (severity) {
     case 'ok':

@@ -1,6 +1,6 @@
 import { TableHead } from '@/components/ui/table'
 
-export type SortKey = 'title' | 'severity' | 'completeness' | 'drift' | 'bpmDelta' | 'keyMatch' | 'peakDb'
+export type SortKey = 'title' | 'severity' | 'issueCount'
 export type SortDir = 'asc' | 'desc'
 
 function ariaSort(key: SortKey, currentKey: SortKey, dir: SortDir) {
