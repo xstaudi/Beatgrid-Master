@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useAudioPlayback } from '../hooks/useAudioPlayback'
 import { useWaveformZoom } from '../hooks/useWaveformZoom'
 import { renderWaveformCanvas } from '../services/canvas-renderer'
-import type { WaveformBandData, WaveformWorkerRequest, WaveformWorkerResponse } from '../types'
+import type { WaveformBandData, WaveformWorkerRequest, WaveformWorkerResponse, BpmSegment } from '../types'
 import type { PcmData } from '@/types/audio'
 import type { AudioFileHandle } from '@/lib/audio/file-access'
 import type { BeatDriftPoint, ClipRegion } from '@/types/analysis'
@@ -20,8 +20,14 @@ interface WaveformPlayerProps {
   beatDriftPoints?: BeatDriftPoint[]
   tempoMarkers?: TempoMarker[]
   clipRegions?: ClipRegion[]
+  bpmSegments?: BpmSegment[]
+  referenceBpm?: number
   zoomEnabled?: boolean
   className?: string
+  phaseMarkerPosition?: number
+  showCenterLine?: boolean
+  onPhaseMarkerDrag?: (sec: number) => void
+  onViewChange?: (viewStart: number, viewEnd: number) => void
 }
 
 function formatTime(seconds: number): string {
@@ -37,8 +43,14 @@ export function WaveformPlayer({
   beatDriftPoints,
   tempoMarkers,
   clipRegions,
+  bpmSegments,
+  referenceBpm,
   zoomEnabled = false,
   className,
+  phaseMarkerPosition,
+  showCenterLine,
+  onPhaseMarkerDrag,
+  onViewChange,
 }: WaveformPlayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -56,8 +68,12 @@ export function WaveformPlayer({
   // Nutze pcmData.duration als Fallback wenn track.duration fehlt (z.B. Audio-Folder Import)
   const effectiveDuration = duration > 0 ? duration : (pcmData?.duration ?? 0)
 
+  const phaseMarkerConfig = phaseMarkerPosition !== undefined && onPhaseMarkerDrag
+    ? { positionSec: phaseMarkerPosition, onDrag: onPhaseMarkerDrag }
+    : undefined
+
   const { zoomLevel, viewStart, viewEnd, zoomLevels, isDragging, consumeDragGesture } =
-    useWaveformZoom(effectiveDuration, canvasRef)
+    useWaveformZoom(effectiveDuration, canvasRef, phaseMarkerConfig)
 
   const effectiveZoom = zoomEnabled ? zoomLevel : 1
   const effectiveViewStart = zoomEnabled ? viewStart : 0
@@ -173,10 +189,14 @@ export function WaveformPlayer({
       tempoMarkers,
       beatDriftPoints,
       clipRegions,
+      bpmSegments,
+      referenceBpm,
+      phaseMarkerPosition,
+      showCenterLine,
     })
   }, [bandReady, effectiveDuration, currentTime, canPlay,
-    tempoMarkers, beatDriftPoints, clipRegions,
-    effectiveViewStart, effectiveViewEnd])
+    tempoMarkers, beatDriftPoints, clipRegions, bpmSegments, referenceBpm,
+    effectiveViewStart, effectiveViewEnd, phaseMarkerPosition, showCenterLine])
 
   // Render loop
   useEffect(() => {
@@ -199,6 +219,13 @@ export function WaveformPlayer({
     observer.observe(container)
     return () => observer.disconnect()
   }, [render])
+
+  // onViewChange: Callback wenn sichtbarer Bereich sich aendert
+  const onViewChangeRef = useRef(onViewChange)
+  useEffect(() => { onViewChangeRef.current = onViewChange })
+  useEffect(() => {
+    onViewChangeRef.current?.(effectiveViewStart, effectiveViewEnd)
+  }, [effectiveViewStart, effectiveViewEnd])
 
   // Click-to-seek (mit Zoom-Korrektur) — unterdrückt nach Drag
   const handleCanvasClick = useCallback(

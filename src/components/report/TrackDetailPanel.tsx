@@ -13,6 +13,7 @@ import { KeyTab } from './tabs/KeyTab'
 import { ClippingTab } from './tabs/ClippingTab'
 import { DuplicatesTab } from './tabs/DuplicatesTab'
 import { WaveformPlayer } from '@/features/waveform'
+import { toBpmSegments, SEGMENT_DURATION_SECONDS } from '@/features/bpm'
 import { useAnalysisStore } from '@/stores/analysis-store'
 import { useTrackStore } from '@/stores/track-store'
 import { useProcessingStore } from '@/stores/processing-store'
@@ -155,6 +156,18 @@ export function TrackDetailPanel({ trackId, onClose }: TrackDetailPanelProps) {
                     zoomEnabled
                   />
                 </div>
+              ) : currentCheck === 'bpm' ? (
+                <WaveformPlayer
+                  pcmData={pcmData}
+                  audioFileHandle={audioFileHandle}
+                  duration={track.duration}
+                  bpmSegments={trackBpm?.segmentBpms?.length
+                    ? toBpmSegments(trackBpm.segmentBpms, track.duration)
+                    : undefined}
+                  referenceBpm={trackBpm?.detectedBpm ?? undefined}
+                  tempoMarkers={track.tempoMarkers}
+                  zoomEnabled
+                />
               ) : currentCheck === 'clipping' ? (
                 <WaveformPlayer
                   pcmData={pcmData}

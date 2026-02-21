@@ -55,16 +55,12 @@ export function BeatgridTab({
           beatTimestamps={rawBeatTimestamps ?? []}
           duration={duration}
         />
-        <div className="grid grid-cols-2 gap-3">
-          <InfoItem label="Methode" value="Generiert" />
-          <InfoItem label="Beats Detected" value={String(result.beatsAnalyzed)} />
-          {generatedGrid.isVariableBpm && (
-            <div className="col-span-2">
-              <SeverityBadge severity="warning" />
-              <span className="ml-2 text-sm">Variable BPM detected</span>
-            </div>
-          )}
-        </div>
+        {generatedGrid.isVariableBpm && (
+          <div className="flex items-center gap-2">
+            <SeverityBadge severity="warning" />
+            <span className="text-sm">Variable BPM detected</span>
+          </div>
+        )}
       </div>
     )
   }

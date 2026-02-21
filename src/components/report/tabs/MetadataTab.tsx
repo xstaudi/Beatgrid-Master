@@ -12,11 +12,11 @@ export function MetadataTab({ result }: MetadataTabProps) {
       {result.fields.map((f) => (
         <div
           key={f.field}
-          className="flex items-start justify-between gap-4 rounded-md border p-3"
+          className="flex items-start justify-between gap-4 rounded-md border py-1.5 px-2"
         >
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium">{FIELD_LABELS[f.field] ?? f.field}</p>
-            <p className="text-sm text-muted-foreground truncate">
+            <p className="text-xs text-muted-foreground truncate">
               {f.value || <span className="italic">empty</span>}
             </p>
             {f.message && (

@@ -1,3 +1,9 @@
+export interface BpmSegment {
+  startTime: number
+  endTime: number
+  bpm: number
+}
+
 export interface WaveformBandBucket {
   min: number
   max: number

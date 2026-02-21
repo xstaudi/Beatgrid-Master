@@ -5,7 +5,9 @@ import {
   BPM_TOLERANCE_OK,
   BPM_TOLERANCE_WARNING,
   VARIABLE_BPM_VARIANCE_THRESHOLD_PCT,
+  SEGMENT_DURATION_SECONDS,
 } from '../constants'
+import type { BpmSegment } from '@/features/waveform/types'
 
 function bpmSeverity(delta: number): Severity {
   const abs = Math.abs(delta)
@@ -126,6 +128,14 @@ export function verifyBpm(track: Track, rawBeat: RawBeatResult | null): TrackBpm
     segmentBpms: rawBeat.segmentBpms,
     bpmVariancePercent: variancePercent,
   }
+}
+
+export function toBpmSegments(segmentBpms: number[], duration: number): BpmSegment[] {
+  return segmentBpms.map((bpm, i) => ({
+    startTime: i * SEGMENT_DURATION_SECONDS,
+    endTime: Math.min((i + 1) * SEGMENT_DURATION_SECONDS, duration),
+    bpm,
+  }))
 }
 
 export function verifyBpmLibrary(tracks: Track[], rawBeats: Map<string, RawBeatResult>): BpmCheckResult {

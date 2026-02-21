@@ -1,4 +1,4 @@
-export { verifyBpm, verifyBpmLibrary, applyHalfDoubleGuard, computeVariance } from './services/bpm-verification'
+export { verifyBpm, verifyBpmLibrary, applyHalfDoubleGuard, computeVariance, toBpmSegments } from './services/bpm-verification'
 export { BpmSummaryCard } from './components/BpmSummaryCard'
 export {
   BPM_TOLERANCE_OK,

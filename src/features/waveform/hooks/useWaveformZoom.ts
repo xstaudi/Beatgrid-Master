@@ -1,17 +1,30 @@
 import { useState, useCallback, useEffect, useRef, type RefObject } from 'react'
 
+interface PhaseMarkerConfig {
+  positionSec: number
+  onDrag: (newSec: number) => void
+}
+
 const ZOOM_LEVELS = [1, 2, 4, 8, 16] as const
 const MIN_ZOOM = 1
 const MAX_ZOOM = 16
 const DRAG_THRESHOLD_PX = 4
 
-export function useWaveformZoom(duration: number, canvasRef: RefObject<HTMLCanvasElement | null>) {
+export function useWaveformZoom(
+  duration: number,
+  canvasRef: RefObject<HTMLCanvasElement | null>,
+  phaseMarkerConfig?: PhaseMarkerConfig,
+) {
   const [zoomLevel, setZoomLevel] = useState(1)
   const [viewCenter, setViewCenter] = useState(duration / 2)
   const [isDragging, setIsDragging] = useState(false)
 
   // Ref um nach dem Drag dem onClick mitzuteilen: nicht seekbar
   const didDragRef = useRef(false)
+
+  // Ref fuer phaseMarkerConfig damit handleMouseDown immer aktuell ist
+  const phaseMarkerConfigRef = useRef(phaseMarkerConfig)
+  useEffect(() => { phaseMarkerConfigRef.current = phaseMarkerConfig })
 
   const visibleDuration = duration / zoomLevel
   const viewStart = Math.max(0, viewCenter - visibleDuration / 2)
@@ -77,6 +90,30 @@ export function useWaveformZoom(duration: number, canvasRef: RefObject<HTMLCanva
     }
 
     const handleMouseDown = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect()
+      const config = phaseMarkerConfigRef.current
+      if (config) {
+        const visDuration = duration / zoomLevel
+        const visStart = correctedStart
+        const markerCanvasX = ((config.positionSec - visStart) / visDuration) * rect.width
+        const clickX = e.clientX - rect.left
+        if (Math.abs(clickX - markerCanvasX) <= 20) {
+          e.preventDefault()
+          const onMove = (mv: MouseEvent) => {
+            const mx = mv.clientX - rect.left
+            const newSec = visStart + (mx / rect.width) * visDuration
+            config.onDrag(Math.max(0, Math.min(duration, newSec)))
+          }
+          const onUp = () => {
+            document.removeEventListener('mousemove', onMove)
+            document.removeEventListener('mouseup', onUp)
+          }
+          document.addEventListener('mousemove', onMove)
+          document.addEventListener('mouseup', onUp, { once: true })
+          return
+        }
+      }
+
       if (zoomLevel <= 1) return
       e.preventDefault()
 
