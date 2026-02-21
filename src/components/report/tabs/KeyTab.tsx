@@ -23,6 +23,7 @@ const matchColor: Record<TrackKeyResult['match'], string> = {
   match: 'text-chart-2',
   mismatch: 'text-destructive',
   relative: 'text-chart-5',
+  compatible: 'text-chart-5',
   'no-library-key': 'text-muted-foreground',
   'no-detection': 'text-muted-foreground',
 }
@@ -81,7 +82,7 @@ export function KeyTab({ result, trackId }: KeyTabProps) {
         value={KEY_MATCH_LABELS[result.match]}
         className={matchColor[result.match]}
       />
-      {trackId && (result.match === 'mismatch' || result.match === 'no-library-key') && (
+      {trackId && (result.match === 'mismatch' || result.match === 'compatible' || result.match === 'no-library-key') && (
         <FixActionBar trackId={trackId} fixKind="key" />
       )}
     </div>

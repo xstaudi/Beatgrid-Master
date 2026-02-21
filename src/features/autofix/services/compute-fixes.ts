@@ -52,7 +52,7 @@ function computeKeyFixes(trackMap: Map<string, Track>, result: KeyCheckResult): 
   const fixes: FixEntry[] = []
   for (const tr of result.tracks) {
     if (tr.detectedKey == null) continue
-    if (tr.match !== 'mismatch' && tr.match !== 'no-library-key') continue
+    if (tr.match !== 'mismatch' && tr.match !== 'compatible' && tr.match !== 'no-library-key') continue
 
     const track = trackMap.get(tr.trackId)
     if (!track) continue

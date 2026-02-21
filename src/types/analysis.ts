@@ -115,7 +115,7 @@ export interface TrackKeyResult {
   detectedCamelot: string | null
   detectedOpenKey: string | null
   confidence: number
-  match: 'match' | 'mismatch' | 'relative' | 'no-library-key' | 'no-detection'
+  match: 'match' | 'mismatch' | 'relative' | 'compatible' | 'no-library-key' | 'no-detection'
   skipReason?: 'no-pcm'
 }
 
@@ -127,6 +127,7 @@ export interface KeyCheckResult {
     tracksMatched: number
     tracksMismatched: number
     tracksRelativeKey: number
+    tracksCompatible: number
     tracksNoLibraryKey: number
     tracksSkipped: number
     avgConfidence: number

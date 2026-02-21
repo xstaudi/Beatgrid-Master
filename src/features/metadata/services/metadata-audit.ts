@@ -19,11 +19,15 @@ const FIELD_WEIGHTS: Record<string, number> = {
   comment: 1,
 }
 
-const REQUIRED_FIELDS = ['title', 'artist'] as const
-const RECOMMENDED_FIELDS = ['genre', 'year', 'album', 'key'] as const
+const REQUIRED_FIELDS  = ['title', 'artist'] as const  // error (rot)
+const IMPORTANT_FIELDS = ['genre'] as const             // warning (orange)
+const PREFERRED_FIELDS = ['album', 'year'] as const     // warning (gelb)
+// key, composer, label, comment → ok wenn fehlend (nice-to-have)
 const ALL_AUDIT_FIELDS = [
   ...REQUIRED_FIELDS,
-  ...RECOMMENDED_FIELDS,
+  ...IMPORTANT_FIELDS,
+  ...PREFERRED_FIELDS,
+  'key',
   'composer',
   'label',
   'comment',
@@ -82,8 +86,9 @@ function getFieldValue(track: Track, field: string): string | null {
 function auditField(track: Track, field: string): MetadataFieldResult {
   const value = getFieldValue(track, field)
   const present = isFieldPresent(track, field)
-  const isRequired = (REQUIRED_FIELDS as readonly string[]).includes(field)
-  const isRecommended = (RECOMMENDED_FIELDS as readonly string[]).includes(field)
+  const isRequired  = (REQUIRED_FIELDS as readonly string[]).includes(field)
+  const isImportant = (IMPORTANT_FIELDS as readonly string[]).includes(field)
+  const isPreferred = (PREFERRED_FIELDS as readonly string[]).includes(field)
 
   if (present) {
     return { field, severity: 'ok', value, message: '' }
@@ -103,8 +108,12 @@ function auditField(track: Track, field: string): MetadataFieldResult {
     return { field, severity: 'error', value, message: `Missing required field: ${field}` }
   }
 
-  if (isRecommended) {
+  if (isImportant) {
     return { field, severity: 'warning', value, message: `Missing recommended field: ${field}` }
+  }
+
+  if (isPreferred) {
+    return { field, severity: 'warning', value, message: `Optional: ${field} fehlt` }
   }
 
   return { field, severity: 'ok', value, message: '' }

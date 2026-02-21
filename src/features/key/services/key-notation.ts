@@ -55,7 +55,9 @@ for (const info of KEY_TABLE) {
 }
 
 // Enharmonic equivalents for normalization
+// KEY_TABLE nutzt Sharps fuer Moll (D#m, A#m, G#m) und Flats fuer Dur (Eb, Bb, Ab)
 const ENHARMONIC_MAP: Record<string, string> = {
+  // Flat → Sharp (Moll + einige Dur)
   'Db': 'C#', 'Dbm': 'C#m',
   'Gb': 'F#', 'Gbm': 'F#m',
   'Abm': 'G#m',
@@ -64,6 +66,10 @@ const ENHARMONIC_MAP: Record<string, string> = {
   'Cb': 'B', 'Cbm': 'Bm',
   'E#': 'F', 'E#m': 'Fm',
   'B#': 'C', 'B#m': 'Cm',
+  // Sharp → Flat (Dur: D#→Eb, G#→Ab, A#→Bb existieren nicht als Sharp-Dur)
+  'D#': 'Eb',
+  'G#': 'Ab',
+  'A#': 'Bb',
 }
 
 export function musicalToCamelot(key: string): string | null {
@@ -166,6 +172,28 @@ export function keyToNotation(key: string, notation: KeyNotation): string | null
     case 'camelot': return info.camelot
     case 'openKey': return info.openKey
   }
+}
+
+/**
+ * True wenn beide Keys Camelot-Nachbarn sind: gleicher Buchstabe (A/A oder B/B)
+ * und Abstand = 1 auf dem Camelot Wheel (mit Wrap-around 1↔12).
+ */
+export function isCamelotNeighbor(musical1: string, musical2: string): boolean {
+  const norm1 = normalizeKey(musical1)
+  const norm2 = normalizeKey(musical2)
+  if (!norm1 || !norm2) return false
+  const info1 = byMusical.get(norm1)
+  const info2 = byMusical.get(norm2)
+  if (!info1 || !info2) return false
+
+  const letter1 = info1.camelot.endsWith('A') ? 'A' : 'B'
+  const letter2 = info2.camelot.endsWith('A') ? 'A' : 'B'
+  if (letter1 !== letter2) return false
+
+  const num1 = parseInt(info1.camelot.slice(0, -1), 10)
+  const num2 = parseInt(info2.camelot.slice(0, -1), 10)
+  const diff = Math.abs(num1 - num2)
+  return diff === 1 || diff === 11 // 11 handles 1↔12 wrap
 }
 
 export function getCompatibleKeys(key: string): string[] {

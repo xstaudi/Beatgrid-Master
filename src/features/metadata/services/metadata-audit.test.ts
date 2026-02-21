@@ -71,11 +71,11 @@ describe('auditTrack', () => {
     expect(yearField?.message).toContain('out of valid range')
   })
 
-  it('returns warning when key is null', () => {
+  it('returns ok when key is null (nice-to-have)', () => {
     const result = auditTrack(makeTrack({ key: null }))
-    expect(result.overallSeverity).toBe('warning')
+    expect(result.overallSeverity).toBe('ok')
     const keyField = result.fields.find((f) => f.field === 'key')
-    expect(keyField?.severity).toBe('warning')
+    expect(keyField?.severity).toBe('ok')
   })
 
   it('returns severity warning when all recommended missing but required present', () => {

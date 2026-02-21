@@ -29,7 +29,7 @@ type Step = 'software' | 'import' | 'config' | 'processing'
 const STEPS: Step[] = ['software', 'import', 'config', 'processing']
 
 const STEP_TITLES: Record<Step, string> = {
-  software: 'DJ-Software wählen',
+  software: 'Import wählen',
   import: 'Bibliothek importieren',
   config: 'Analyse konfigurieren',
   processing: 'Analyse läuft',

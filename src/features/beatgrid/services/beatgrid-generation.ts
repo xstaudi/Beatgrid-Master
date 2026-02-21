@@ -59,11 +59,9 @@ export function generateBeatgrid(
     return { ...skippedBase, skipReason: 'too-few-beats' }
   }
 
-  // Variable-BPM Check (5% Threshold fuer Generation)
+  // Variable-BPM Check (nur flaggen, Grid trotzdem generieren fuer Vergleich)
   const { variancePercent } = computeVariance(rawBeat.segmentBpms)
-  if (variancePercent > VARIABLE_BPM_SKIP_THRESHOLD_PCT) {
-    return { ...skippedBase, isVariableBpm: true, skipReason: 'variable-bpm' }
-  }
+  const isVariableBpm = variancePercent > VARIABLE_BPM_SKIP_THRESHOLD_PCT
 
   // Median-BPM berechnen
   let medianBpm = computeMedianBpm(rawBeat.beatTimestamps)
@@ -110,7 +108,7 @@ export function generateBeatgrid(
   return {
     tempoMarkers: [marker],
     method: 'static',
-    isVariableBpm: variancePercent > 2.0,
+    isVariableBpm,
     confidence,
     medianBpm: roundedBpm,
     phaseOffsetSec,

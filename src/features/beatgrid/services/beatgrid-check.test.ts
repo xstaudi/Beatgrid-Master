@@ -95,7 +95,7 @@ describe('checkBeatgrid', () => {
     expect(result.overallSeverity).toBe('warning')
   })
 
-  it('35ms drift → error severity', () => {
+  it('35ms drift → warning severity (unter neuer 50ms-Grenze)', () => {
     const track = makeTrack()
     const interval = 60 / 128
     const beats: number[] = []
@@ -105,16 +105,30 @@ describe('checkBeatgrid', () => {
     const raw = makeRawBeat({ beatTimestamps: beats })
     const result = checkBeatgrid(track, raw)
 
+    expect(result.overallSeverity).toBe('warning')
+  })
+
+  it('55ms drift → error severity (über 50ms-Grenze)', () => {
+    const track = makeTrack()
+    const interval = 60 / 128
+    const beats: number[] = []
+    for (let t = 0; t < 180; t += interval) {
+      beats.push(t + 0.055) // 55ms drift
+    }
+    const raw = makeRawBeat({ beatTimestamps: beats })
+    const result = checkBeatgrid(track, raw)
+
     expect(result.overallSeverity).toBe('error')
   })
 
-  it('empty tempoMarkers → skipReason no-grid', () => {
+  it('empty tempoMarkers → warning (kein skipReason, da Beats erkannt)', () => {
     const track = makeTrack({ tempoMarkers: [] })
     const raw = makeRawBeat()
     const result = checkBeatgrid(track, raw)
 
-    expect(result.skipReason).toBe('no-grid')
+    expect(result.skipReason).toBeUndefined()
     expect(result.overallSeverity).toBe('warning')
+    expect(result.beatsAnalyzed).toBeGreaterThan(0)
   })
 
   it('null rawBeat → skipReason no-pcm', () => {
@@ -174,8 +188,8 @@ describe('checkBeatgrid', () => {
     const beats: number[] = []
     for (let i = 0; i < 100; i++) {
       const t = i * interval
-      // 40% of beats have 50ms drift → > 30% threshold
-      const drift = i % 5 < 2 ? 0.05 : 0.003
+      // 40% of beats have 60ms drift (> 50ms Grenze) → > 30% threshold → escalate
+      const drift = i % 5 < 2 ? 0.06 : 0.003
       beats.push(t + drift)
     }
     const raw = makeRawBeat({ beatTimestamps: beats, duration: 50 })

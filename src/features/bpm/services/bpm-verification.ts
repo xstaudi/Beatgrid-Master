@@ -4,6 +4,7 @@ import type { RawBeatResult } from '@/types/audio'
 import {
   BPM_TOLERANCE_OK,
   BPM_TOLERANCE_WARNING,
+  BPM_TOLERANCE_ERROR,
   VARIABLE_BPM_VARIANCE_THRESHOLD_PCT,
   SEGMENT_DURATION_SECONDS,
 } from '../constants'
@@ -12,8 +13,9 @@ import type { BpmSegment } from '@/features/waveform/types'
 function bpmSeverity(delta: number): Severity {
   const abs = Math.abs(delta)
   if (abs <= BPM_TOLERANCE_OK) return 'ok'
-  if (abs <= BPM_TOLERANCE_WARNING) return 'warning'
-  return 'error'
+  if (abs <= BPM_TOLERANCE_WARNING) return 'warning'  // ≤ 0.5 BPM
+  if (abs <= BPM_TOLERANCE_ERROR) return 'warning'    // ≤ 2.0 BPM – noch tolerierbar
+  return 'error'                                        // > 2.0 BPM = echter Fehler
 }
 
 export function applyHalfDoubleGuard(detected: number, stored: number): { adjusted: number; wasAdjusted: boolean } {

@@ -344,7 +344,7 @@ function renderDriftPoints(
   width: number, height: number,
   visibleStart: number, visibleEnd: number, visibleDuration: number,
 ): void {
-  ctx.strokeStyle = 'rgba(255, 200, 50, 0.5)'
+  ctx.strokeStyle = 'rgba(80, 200, 180, 0.5)'
   ctx.lineWidth = 1
   ctx.setLineDash([3, 3])
   ctx.beginPath()

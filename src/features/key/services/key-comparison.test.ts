@@ -45,8 +45,37 @@ describe('compareKey', () => {
     expect(result.overallSeverity).toBe('warning')
   })
 
-  it('should return mismatch for different keys', () => {
-    const result = compareKey(makeTrack({ key: 'Dm' }), makeRawKey({ detectedKey: 'Am' }))
+  it('should return compatible for Camelot neighbors (e.g. 3A vs 4A)', () => {
+    // A#m = 3A, Fm = 4A → neighbors
+    const result = compareKey(makeTrack({ key: 'A#m' }), makeRawKey({ detectedKey: 'Fm', confidence: 0.8 }))
+    expect(result.match).toBe('compatible')
+    expect(result.overallSeverity).toBe('warning')
+  })
+
+  it('should return compatible for wrap-around neighbors (12A vs 1A)', () => {
+    // C#m = 12A, G#m = 1A → neighbors via wrap
+    const result = compareKey(makeTrack({ key: 'C#m' }), makeRawKey({ detectedKey: 'G#m', confidence: 0.8 }))
+    expect(result.match).toBe('compatible')
+    expect(result.overallSeverity).toBe('warning')
+  })
+
+  it('should return mismatch for different keys (distance > 1)', () => {
+    // Gm = 6A, Am = 8A → distance 2, same letter → NOT neighbors → mismatch
+    const result = compareKey(makeTrack({ key: 'Gm' }), makeRawKey({ detectedKey: 'Am', confidence: 0.8 }))
+    expect(result.match).toBe('mismatch')
+    expect(result.overallSeverity).toBe('error')
+  })
+
+  it('should return mismatch with warning severity for low confidence', () => {
+    // Gm = 6A, Am = 8A → distance 2 → mismatch, confidence < 15% → warning
+    const result = compareKey(makeTrack({ key: 'Gm' }), makeRawKey({ detectedKey: 'Am', confidence: 0.05 }))
+    expect(result.match).toBe('mismatch')
+    expect(result.overallSeverity).toBe('warning')
+  })
+
+  it('should return mismatch with error severity for high confidence', () => {
+    // Gm = 6A, Am = 8A → distance 2 → mismatch, confidence ≥ 15% → error
+    const result = compareKey(makeTrack({ key: 'Gm' }), makeRawKey({ detectedKey: 'Am', confidence: 0.8 }))
     expect(result.match).toBe('mismatch')
     expect(result.overallSeverity).toBe('error')
   })
@@ -89,6 +118,7 @@ describe('checkKeyLibrary', () => {
     expect(result.type).toBe('key')
     expect(result.libraryStats.tracksMatched).toBe(1)
     expect(result.libraryStats.tracksRelativeKey).toBe(1)
+    expect(result.libraryStats.tracksCompatible).toBe(0)
     expect(result.libraryStats.tracksNoLibraryKey).toBe(1)
     expect(result.libraryStats.totalTracks).toBe(3)
   })

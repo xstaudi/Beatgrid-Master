@@ -47,7 +47,7 @@ describe('generateBeatgrid', () => {
     expect(result.confidence).toBeGreaterThan(80)
   })
 
-  it('skippt bei Variable BPM (Varianz >5%)', () => {
+  it('generiert Grid trotz Variable BPM (>5% Varianz), flaggt aber isVariableBpm', () => {
     const beats = generateEvenBeats(128, 300, 0.1)
     const rawBeat = makeRawBeat({
       beatTimestamps: beats,
@@ -57,9 +57,9 @@ describe('generateBeatgrid', () => {
 
     const result = generateBeatgrid(rawBeat, [])
 
-    expect(result.method).toBe('skipped')
-    expect(result.skipReason).toBe('variable-bpm')
+    expect(result.method).toBe('static')
     expect(result.isVariableBpm).toBe(true)
+    expect(result.tempoMarkers).toHaveLength(1)
   })
 
   it('skippt bei <10 Beats', () => {

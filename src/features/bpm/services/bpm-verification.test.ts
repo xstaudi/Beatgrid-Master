@@ -47,35 +47,48 @@ function makeRawBeat(overrides: Partial<RawBeatResult> = {}): RawBeatResult {
 }
 
 describe('verifyBpm', () => {
-  it('stored=128, detected=128.01 → ok', () => {
+  it('stored=128, detected=128 → ok (kein Delta)', () => {
     const track = makeTrack({ bpm: 128 })
-    const raw = makeRawBeat({ bpmEstimate: 128.01 })
+    const raw = makeRawBeat() // segmentBpms=[128,128,128,128] → median=128
     const result = verifyBpm(track, raw)
 
     expect(result.overallSeverity).toBe('ok')
-    expect(result.bpmDelta).toBeCloseTo(0.01)
+    expect(result.bpmDelta).toBeCloseTo(0)
     expect(result.halfDoubleAdjusted).toBe(false)
   })
 
-  it('stored=128, detected=127.6 → warning', () => {
+  it('stored=128, detected=127.0 → warning (delta=1 ≤ 2.0 BPM)', () => {
     const track = makeTrack({ bpm: 128 })
-    const raw = makeRawBeat({ bpmEstimate: 127.6 })
+    // segmentBpms geben median=127 → delta=-1 → warning
+    const raw = makeRawBeat({ segmentBpms: [127, 127, 127, 127] })
+    const result = verifyBpm(track, raw)
+
+    expect(result.overallSeverity).toBe('warning')
+    expect(result.bpmDelta).toBeCloseTo(-1)
+  })
+
+  it('stored=128, detected≈127.5 → warning (delta<1)', () => {
+    const track = makeTrack({ bpm: 128 })
+    // segmentBpms median=127 → delta=-1 → warning
+    const raw = makeRawBeat({ segmentBpms: [127, 127, 127, 128] })
     const result = verifyBpm(track, raw)
 
     expect(result.overallSeverity).toBe('warning')
   })
 
-  it('stored=128, detected=127.0 → error', () => {
+  it('stored=128, detected=125 → error (delta=3 > 2.0 BPM)', () => {
     const track = makeTrack({ bpm: 128 })
-    const raw = makeRawBeat({ bpmEstimate: 127.0 })
+    const raw = makeRawBeat({ segmentBpms: [125, 125, 125, 125] })
     const result = verifyBpm(track, raw)
 
     expect(result.overallSeverity).toBe('error')
+    expect(result.bpmDelta).toBeCloseTo(-3)
   })
 
   it('half-tempo guard: stored=128, detected=64 → adjusted=128', () => {
     const track = makeTrack({ bpm: 128 })
-    const raw = makeRawBeat({ bpmEstimate: 64 })
+    // segmentBpms auf 64 setzen → median=64, applyHalfDoubleGuard wählt 128
+    const raw = makeRawBeat({ bpmEstimate: 64, segmentBpms: [64, 64, 64, 64] })
     const result = verifyBpm(track, raw)
 
     expect(result.detectedBpm).toBe(128)
@@ -85,7 +98,8 @@ describe('verifyBpm', () => {
 
   it('double-tempo guard: stored=128, detected=256 → adjusted=128', () => {
     const track = makeTrack({ bpm: 128 })
-    const raw = makeRawBeat({ bpmEstimate: 256 })
+    // segmentBpms auf 256 setzen → median=256, applyHalfDoubleGuard wählt 128
+    const raw = makeRawBeat({ bpmEstimate: 256, segmentBpms: [256, 256, 256, 256] })
     const result = verifyBpm(track, raw)
 
     expect(result.detectedBpm).toBe(128)
@@ -93,13 +107,16 @@ describe('verifyBpm', () => {
     expect(result.overallSeverity).toBe('ok')
   })
 
-  it('no stored BPM → skipReason no-bpm-stored', () => {
+  it('no stored BPM → warning, detectedBpm gesetzt, kein skipReason', () => {
     const track = makeTrack({ bpm: null })
     const raw = makeRawBeat()
     const result = verifyBpm(track, raw)
 
-    expect(result.skipReason).toBe('no-bpm-stored')
+    expect(result.skipReason).toBeUndefined()
+    expect(result.overallSeverity).toBe('warning')
     expect(result.detectedBpm).toBe(128)
+    expect(result.storedBpm).toBeNull()
+    expect(result.bpmDelta).toBeNull()
   })
 
   it('no rawBeat → skipReason no-pcm', () => {
@@ -188,8 +205,9 @@ describe('verifyBpmLibrary', () => {
 
     expect(result.type).toBe('bpm')
     expect(result.libraryStats.totalTracks).toBe(3)
-    expect(result.libraryStats.tracksOk).toBeGreaterThanOrEqual(1) // t1 ok
-    expect(result.libraryStats.tracksSkipped).toBeGreaterThanOrEqual(1) // t2 no-bpm-stored
+    expect(result.libraryStats.tracksOk).toBeGreaterThanOrEqual(1)      // t1 ok
+    expect(result.libraryStats.tracksWithWarnings).toBeGreaterThanOrEqual(1) // t2 kein stored BPM → warning
+    expect(result.libraryStats.tracksSkipped).toBe(0)                   // kein skip mehr
     expect(result.libraryStats.avgDetectedBpm).toBeGreaterThan(0)
   })
 })

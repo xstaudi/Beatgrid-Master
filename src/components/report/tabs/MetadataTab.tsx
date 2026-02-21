@@ -81,6 +81,7 @@ export function MetadataTab({ result, track }: MetadataTabProps) {
         {result.fields.map((f) => (
           <EnrichmentSuggestionRow
             key={f.field}
+            fieldName={f.field}
             fieldLabel={FIELD_LABELS[f.field] ?? f.field}
             currentValue={f.value}
             severity={f.severity}

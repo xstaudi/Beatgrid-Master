@@ -7,8 +7,12 @@ import { ENRICHMENT_SOURCE_LABELS } from '../constants'
 import type { FieldSuggestion, EnrichmentField } from '@/types/enrichment'
 import type { Severity } from '@/types/analysis'
 
+const YELLOW_FIELDS = ['album', 'year']
+
 interface EnrichmentSuggestionRowProps {
   fieldLabel: string
+  /** Feldname für Farb-Differenzierung (album/year = gelb, genre = orange) */
+  fieldName?: string
   currentValue: string | null
   /** Severity aus dem Metadata-Audit */
   severity?: Severity
@@ -24,6 +28,7 @@ interface EnrichmentSuggestionRowProps {
 
 export function EnrichmentSuggestionRow({
   fieldLabel,
+  fieldName,
   currentValue,
   severity = 'ok',
   message,
@@ -40,9 +45,13 @@ export function EnrichmentSuggestionRow({
     ? 'bg-chart-2'
     : severity === 'error'
       ? 'bg-destructive'
-      : severity === 'warning'
-        ? 'bg-chart-5'
-        : 'bg-chart-2'
+      : severity === 'warning' && fieldName && YELLOW_FIELDS.includes(fieldName)
+        ? 'bg-chart-3'   // Gelb für album/year (bevorzugt)
+        : severity === 'warning'
+          ? 'bg-chart-5'   // Orange für genre (wichtig)
+          : hasValue
+            ? 'bg-chart-2'   // Grün wenn Wert vorhanden
+            : 'bg-muted'     // Neutral für ok-felder die leer sind (nice-to-have)
 
   return (
     <div className="grid grid-cols-[110px_1fr_12px] items-baseline gap-x-3 py-1.5 px-1">

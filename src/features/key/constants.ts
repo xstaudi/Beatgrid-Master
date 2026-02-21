@@ -2,6 +2,7 @@ export const KEY_MATCH_LABELS = {
   match: 'Key Match',
   mismatch: 'Key Mismatch',
   relative: 'Relative Key',
+  compatible: 'Camelot Nachbar',
   'no-library-key': 'No Library Key',
   'no-detection': 'No Detection',
 } as const

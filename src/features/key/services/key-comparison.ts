@@ -1,7 +1,9 @@
 import type { Track } from '@/types/track'
 import type { TrackKeyResult, KeyCheckResult } from '@/types/analysis'
 import type { RawKeyResult } from '@/types/audio'
-import { normalizeKey, getRelativeKey, musicalToCamelot, musicalToOpenKey } from './key-notation'
+import { normalizeKey, getRelativeKey, isCamelotNeighbor, musicalToCamelot, musicalToOpenKey } from './key-notation'
+
+const LOW_CONFIDENCE_THRESHOLD = 15 // < 15% → Severity Warning statt Error
 
 export function compareKey(track: Track, rawKey: RawKeyResult | null): TrackKeyResult {
   if (!rawKey) {
@@ -64,32 +66,29 @@ export function compareKey(track: Track, rawKey: RawKeyResult | null): TrackKeyR
     }
   }
 
-  // Relative key match (Am <-> C)
-  const relativeKey = getRelativeKey(detectedNorm)
-  if (relativeKey && relativeKey === libraryNorm) {
-    return {
-      trackId: track.id,
-      overallSeverity: 'warning',
-      detectedKey: rawKey.detectedKey,
-      libraryKey: track.key,
-      detectedCamelot,
-      detectedOpenKey,
-      confidence: rawKey.confidence * 100,
-      match: 'relative',
-    }
-  }
-
-  // Mismatch
-  return {
+  const base = {
     trackId: track.id,
-    overallSeverity: 'error',
     detectedKey: rawKey.detectedKey,
     libraryKey: track.key,
     detectedCamelot,
     detectedOpenKey,
     confidence: rawKey.confidence * 100,
-    match: 'mismatch',
   }
+
+  // Relative key match (Am <-> C)
+  const relativeKey = getRelativeKey(detectedNorm)
+  if (relativeKey && relativeKey === libraryNorm) {
+    return { ...base, overallSeverity: 'warning' as const, match: 'relative' as const }
+  }
+
+  // Camelot Neighbor (±1, gleicher Buchstabe)
+  if (isCamelotNeighbor(detectedNorm, libraryNorm)) {
+    return { ...base, overallSeverity: 'warning' as const, match: 'compatible' as const }
+  }
+
+  // Mismatch – Severity abhängig von Confidence
+  const mismatchSeverity = rawKey.confidence * 100 < LOW_CONFIDENCE_THRESHOLD ? 'warning' as const : 'error' as const
+  return { ...base, overallSeverity: mismatchSeverity, match: 'mismatch' as const }
 }
 
 export function checkKeyLibrary(
@@ -103,6 +102,7 @@ export function checkKeyLibrary(
   let matched = 0
   let mismatched = 0
   let relativeKey = 0
+  let compatible = 0
   let noLibraryKey = 0
   let skipped = 0
 
@@ -112,6 +112,7 @@ export function checkKeyLibrary(
       case 'match': matched++; break
       case 'mismatch': mismatched++; break
       case 'relative': relativeKey++; break
+      case 'compatible': compatible++; break
       case 'no-library-key': noLibraryKey++; break
       case 'no-detection': skipped++; break
     }
@@ -129,6 +130,7 @@ export function checkKeyLibrary(
       tracksMatched: matched,
       tracksMismatched: mismatched,
       tracksRelativeKey: relativeKey,
+      tracksCompatible: compatible,
       tracksNoLibraryKey: noLibraryKey,
       tracksSkipped: skipped,
       avgConfidence: confidenceCount > 0 ? totalConfidence / confidenceCount : 0,

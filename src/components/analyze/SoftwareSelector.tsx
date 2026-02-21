@@ -1,52 +1,32 @@
 'use client'
 
+import Image from 'next/image'
 import type { DjSoftware } from '@/types/track'
 import { Card, CardContent } from '@/components/ui/card'
-import { Music2, Headphones, Usb, Monitor, Folder } from 'lucide-react'
+import { Folder } from 'lucide-react'
 
 interface SoftwareSelectorProps {
   selected: DjSoftware | null
   onChange: (sw: DjSoftware) => void
 }
 
-const options: { id: DjSoftware; label: string; description: string; icon: typeof Music2 }[] = [
-  {
-    id: 'rekordbox',
-    label: 'Rekordbox',
-    description: 'XML Library Export',
-    icon: Music2,
-  },
+const options: { id: DjSoftware; label: string; description: string }[] = [
   {
     id: 'rekordbox-usb',
     label: 'Rekordbox USB',
     description: 'USB Stick (Performance Export)',
-    icon: Usb,
-  },
-  {
-    id: 'traktor',
-    label: 'Traktor',
-    description: 'NML Collection File',
-    icon: Headphones,
-  },
-  {
-    id: 'rekordbox-pc',
-    label: 'Rekordbox (Lokal)',
-    description: 'Direkt vom PC importieren',
-    icon: Monitor,
   },
   {
     id: 'audio-folder',
     label: 'Audio-Ordner',
-    description: 'MP3, WAV, FLAC, AIFF…',
-    icon: Folder,
+    description: 'MP3, WAV, FLAC, AIFF\u2026',
   },
 ]
 
 export function SoftwareSelector({ selected, onChange }: SoftwareSelectorProps) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-lg mx-auto">
       {options.map((opt) => {
-        const Icon = opt.icon
         const isSelected = selected === opt.id
         return (
           <Card
@@ -67,10 +47,20 @@ export function SoftwareSelector({ selected, onChange }: SoftwareSelectorProps) 
                 : 'hover:border-primary/50'
             }`}
           >
-            <CardContent className="flex flex-col items-center gap-3 pt-6 pb-6">
-              <Icon className={`h-10 w-10 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+            <CardContent className="flex flex-col items-center gap-4 py-10">
+              {opt.id === 'rekordbox-usb' ? (
+                <Image
+                  src="/rekordbox-logo.png"
+                  alt="Rekordbox"
+                  width={56}
+                  height={56}
+                  className="h-14 w-14 rounded-lg"
+                />
+              ) : (
+                <Folder className={`h-14 w-14 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+              )}
               <div className="text-center">
-                <p className="font-medium">{opt.label}</p>
+                <p className="text-lg font-medium">{opt.label}</p>
                 <p className="text-sm text-muted-foreground">{opt.description}</p>
               </div>
             </CardContent>

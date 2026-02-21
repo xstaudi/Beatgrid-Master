@@ -31,7 +31,7 @@ export function KeySummaryCard({ result }: KeySummaryCardProps) {
         {/* Distribution */}
         <div className="flex items-center gap-3">
           <SeverityBadge severity="ok" count={libraryStats.tracksMatched} />
-          <SeverityBadge severity="warning" count={libraryStats.tracksRelativeKey + libraryStats.tracksNoLibraryKey} />
+          <SeverityBadge severity="warning" count={libraryStats.tracksRelativeKey + libraryStats.tracksCompatible + libraryStats.tracksNoLibraryKey} />
           <SeverityBadge severity="error" count={libraryStats.tracksMismatched} />
         </div>
 
@@ -40,6 +40,11 @@ export function KeySummaryCard({ result }: KeySummaryCardProps) {
           {libraryStats.tracksRelativeKey > 0 && (
             <p className="text-xs text-muted-foreground">
               {libraryStats.tracksRelativeKey} tracks detected as relative key
+            </p>
+          )}
+          {libraryStats.tracksCompatible > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {libraryStats.tracksCompatible} tracks mit benachbartem Key
             </p>
           )}
           {libraryStats.tracksNoLibraryKey > 0 && (
