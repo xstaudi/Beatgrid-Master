@@ -2,7 +2,7 @@
 
 import type { DjSoftware } from '@/types/track'
 import { Card, CardContent } from '@/components/ui/card'
-import { Music2, Headphones, Usb } from 'lucide-react'
+import { Music2, Headphones, Usb, Monitor, Folder } from 'lucide-react'
 
 interface SoftwareSelectorProps {
   selected: DjSoftware | null
@@ -28,11 +28,23 @@ const options: { id: DjSoftware; label: string; description: string; icon: typeo
     description: 'NML Collection File',
     icon: Headphones,
   },
+  {
+    id: 'rekordbox-pc',
+    label: 'Rekordbox (Lokal)',
+    description: 'Direkt vom PC importieren',
+    icon: Monitor,
+  },
+  {
+    id: 'audio-folder',
+    label: 'Audio-Ordner',
+    description: 'MP3, WAV, FLAC, AIFF…',
+    icon: Folder,
+  },
 ]
 
 export function SoftwareSelector({ selected, onChange }: SoftwareSelectorProps) {
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
       {options.map((opt) => {
         const Icon = opt.icon
         const isSelected = selected === opt.id

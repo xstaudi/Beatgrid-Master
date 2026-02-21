@@ -2,7 +2,7 @@ import { z } from 'zod/v4'
 
 // --- Core Types ---
 
-export type DjSoftware = 'rekordbox' | 'traktor' | 'rekordbox-usb'
+export type DjSoftware = 'rekordbox' | 'traktor' | 'rekordbox-usb' | 'rekordbox-pc' | 'audio-folder'
 export type Severity = 'ok' | 'warning' | 'error'
 export type MusicalKey = string // "Am", "C#m", "Bb", etc.
 export type CamelotKey = string // "8A", "11B", etc.
@@ -33,7 +33,7 @@ export const CuePointSchema = z.object({
 
 export const TrackSchema = z.object({
   id: z.string(),
-  source: z.enum(['rekordbox', 'traktor', 'rekordbox-usb']),
+  source: z.enum(['rekordbox', 'traktor', 'rekordbox-usb', 'rekordbox-pc', 'audio-folder']),
   sourceId: z.string(),
 
   title: z.string(),

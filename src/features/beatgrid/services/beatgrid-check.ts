@@ -119,7 +119,7 @@ export function checkBeatgrid(track: Track, rawBeat: RawBeatResult | null): Trac
       beatsAnalyzed: rawBeat.beatTimestamps.length,
       beatsMatched: 0,
       isVariableBpm: false,
-      skipReason: 'no-grid',
+      // Kein skipReason: Beats wurden detektiert, nur kein gespeichertes Grid zum Vergleichen
     }
   }
 

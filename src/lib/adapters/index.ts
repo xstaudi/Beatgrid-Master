@@ -3,6 +3,8 @@ import type { DirectoryAdapter, LibraryAdapter, ParseResult } from './types'
 import { RekordboxAdapter } from './rekordbox'
 import { TraktorAdapter } from './traktor'
 import { RekordboxUsbAdapter } from './rekordbox-usb'
+import { RekordboxPcAdapter } from './rekordbox-pc'
+import { AudioFolderAdapter } from './audio-folder'
 
 export type { DirectoryAdapter, DirectoryImportResult, LibraryAdapter, ParseResult, ParseWarning } from './types'
 
@@ -29,6 +31,10 @@ export function createAdapter(software: DjSoftware): LibraryAdapter {
       return new TraktorAdapter()
     case 'rekordbox-usb':
       throw new Error('Use createDirectoryAdapter() for USB import')
+    case 'rekordbox-pc':
+      throw new Error('Use createDirectoryAdapter() for PC import')
+    case 'audio-folder':
+      throw new Error('Use createDirectoryAdapter() for audio folder import')
   }
 }
 
@@ -36,6 +42,10 @@ export function createDirectoryAdapter(software: DjSoftware): DirectoryAdapter {
   switch (software) {
     case 'rekordbox-usb':
       return new RekordboxUsbAdapter()
+    case 'rekordbox-pc':
+      return new RekordboxPcAdapter()
+    case 'audio-folder':
+      return new AudioFolderAdapter()
     default:
       throw new Error(`No directory adapter for ${software}`)
   }

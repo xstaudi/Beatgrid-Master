@@ -20,6 +20,8 @@ interface TrackStore {
 
   importLibrary: (xmlContent: string) => void
   importUsbLibrary: (handle: FileSystemDirectoryHandle) => Promise<void>
+  importPcLibrary: (handle: FileSystemDirectoryHandle) => Promise<void>
+  importAudioFolder: (handle: FileSystemDirectoryHandle) => Promise<void>
   setActivePlaylist: (id: string | null) => void
   getActiveTracks: () => Track[]
   clearLibrary: () => void
@@ -74,6 +76,52 @@ export const useTrackStore = create<TrackStore>((set, get) => ({
         importedAt: new Date(),
         rawXml: null,
         playlists: result.playlists,
+        activePlaylistId: null,
+        importMode: 'directory',
+      })
+    } catch (error) {
+      set({ isLoading: false })
+      throw error
+    }
+  },
+
+  importPcLibrary: async (handle: FileSystemDirectoryHandle) => {
+    set({ isLoading: true })
+    try {
+      const adapter = createDirectoryAdapter('rekordbox-pc')
+      const result = await adapter.parseDirectory(handle)
+      set({
+        tracks: result.tracks,
+        source: result.source,
+        sourceVersion: result.version,
+        warnings: result.warnings,
+        isLoading: false,
+        importedAt: new Date(),
+        rawXml: null,
+        playlists: result.playlists,
+        activePlaylistId: null,
+        importMode: 'directory',
+      })
+    } catch (error) {
+      set({ isLoading: false })
+      throw error
+    }
+  },
+
+  importAudioFolder: async (handle: FileSystemDirectoryHandle) => {
+    set({ isLoading: true })
+    try {
+      const adapter = createDirectoryAdapter('audio-folder')
+      const result = await adapter.parseDirectory(handle)
+      set({
+        tracks: result.tracks,
+        source: result.source,
+        sourceVersion: result.version,
+        warnings: result.warnings,
+        isLoading: false,
+        importedAt: new Date(),
+        rawXml: null,
+        playlists: [],
         activePlaylistId: null,
         importMode: 'directory',
       })

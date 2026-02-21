@@ -16,6 +16,8 @@ import { FileDropZone } from '@/components/analyze/FileDropZone'
 import { CheckSelector } from '@/components/analyze/CheckSelector'
 import { AudioDirectoryPicker } from '@/components/analyze/AudioDirectoryPicker'
 import { UsbDirectoryPicker } from '@/components/analyze/UsbDirectoryPicker'
+import { RekordboxPcPicker } from '@/components/analyze/RekordboxPcPicker'
+import { AudioFolderPicker } from '@/components/analyze/AudioFolderPicker'
 import { PlaylistSelector } from '@/components/analyze/PlaylistSelector'
 import { ProcessingIndicator } from '@/components/analyze/ProcessingIndicator'
 import { Button } from '@/components/ui/button'
@@ -38,6 +40,8 @@ export default function AnalyzePage() {
     isLoading,
     importLibrary,
     importUsbLibrary,
+    importPcLibrary,
+    importAudioFolder,
     playlists,
     activePlaylistId,
     setActivePlaylist,
@@ -60,9 +64,12 @@ export default function AnalyzePage() {
   const [audioSkipped, setAudioSkipped] = useState(false)
   const [isPicking, setIsPicking] = useState(false)
   const [usbError, setUsbError] = useState<string | null>(null)
+  const [pcError, setPcError] = useState<string | null>(null)
+  const [audioFolderError, setAudioFolderError] = useState<string | null>(null)
 
   const decodePipelineRef = useRef<DecodePipeline | null>(null)
   const usbHandleRef = useRef<FileSystemDirectoryHandle | null>(null)
+  const audioFolderHandleRef = useRef<FileSystemDirectoryHandle | null>(null)
   const stepIndex = STEPS.indexOf(step)
 
   const handleFile = useCallback(
@@ -92,6 +99,33 @@ export default function AnalyzePage() {
     [importUsbLibrary]
   )
 
+  const handlePcDirectory = useCallback(
+    async (handle: FileSystemDirectoryHandle) => {
+      setPcError(null)
+      try {
+        await importPcLibrary(handle)
+        setStep('config')
+      } catch (err) {
+        setPcError(err instanceof Error ? err.message : 'Fehler beim Lesen der rekordbox-Bibliothek')
+      }
+    },
+    [importPcLibrary]
+  )
+
+  const handleAudioFolderDirectory = useCallback(
+    async (handle: FileSystemDirectoryHandle) => {
+      setAudioFolderError(null)
+      try {
+        await importAudioFolder(handle)
+        audioFolderHandleRef.current = handle
+        setStep('config')
+      } catch (err) {
+        setAudioFolderError(err instanceof Error ? err.message : 'Fehler beim Lesen des Audio-Ordners')
+      }
+    },
+    [importAudioFolder]
+  )
+
   const handlePickDirectory = useCallback(async () => {
     setIsPicking(true)
     try {
@@ -119,6 +153,13 @@ export default function AnalyzePage() {
     // For USB imports: auto-scan the USB stick for audio files
     if (usbHandleRef.current) {
       const audioFiles = await scanDirectoryForAudio(usbHandleRef.current)
+      const matched = matchTracksToFiles(currentTracks, audioFiles)
+      useProcessingStore.getState().setAudioFiles(matched, currentTracks.length)
+    }
+
+    // For audio-folder imports: auto-scan the selected folder
+    if (audioFolderHandleRef.current) {
+      const audioFiles = await scanDirectoryForAudio(audioFolderHandleRef.current)
       const matched = matchTracksToFiles(currentTracks, audioFiles)
       useProcessingStore.getState().setAudioFiles(matched, currentTracks.length)
     }
@@ -266,7 +307,25 @@ export default function AnalyzePage() {
           />
         )}
 
-        {step === 'import' && software !== 'rekordbox-usb' && (
+        {step === 'import' && software === 'rekordbox-pc' && (
+          <RekordboxPcPicker
+            isLoading={isLoading}
+            trackCount={tracks.length > 0 ? tracks.length : null}
+            error={pcError}
+            onSelect={handlePcDirectory}
+          />
+        )}
+
+        {step === 'import' && software === 'audio-folder' && (
+          <AudioFolderPicker
+            isLoading={isLoading}
+            trackCount={tracks.length > 0 ? tracks.length : null}
+            error={audioFolderError}
+            onSelect={handleAudioFolderDirectory}
+          />
+        )}
+
+        {step === 'import' && software !== 'rekordbox-usb' && software !== 'rekordbox-pc' && software !== 'audio-folder' && (
           <div className="space-y-4">
             <FileDropZone onFile={handleFile} isLoading={isLoading} />
             {importError && (
@@ -296,7 +355,7 @@ export default function AnalyzePage() {
               onChange={(checks: CheckId[]) => setChecks(checks)}
               onNeedsAudioChange={setNeedsAudio}
             />
-            {needsAudio && !audioSkipped && software !== 'rekordbox-usb' && (
+            {needsAudio && !audioSkipped && software !== 'rekordbox-usb' && software !== 'audio-folder' && (
               <AudioDirectoryPicker
                 tracks={tracks}
                 matchStats={matchStats}
@@ -309,7 +368,7 @@ export default function AnalyzePage() {
               onClick={handleRunAnalysis}
               disabled={
                 config.checks.length === 0 ||
-                (needsAudio && !audioSkipped && software !== 'rekordbox-usb' && audioFileHandles.size === 0)
+                (needsAudio && !audioSkipped && software !== 'rekordbox-usb' && software !== 'audio-folder' && audioFileHandles.size === 0)
               }
               className="w-full"
               size="lg"

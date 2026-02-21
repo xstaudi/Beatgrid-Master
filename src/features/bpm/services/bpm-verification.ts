@@ -96,7 +96,7 @@ export function verifyBpm(track: Track, rawBeat: RawBeatResult | null): TrackBpm
       isVariableBpm,
       segmentBpms: rawBeat.segmentBpms,
       bpmVariancePercent: variancePercent,
-      skipReason: 'no-bpm-stored',
+      // Kein skipReason: Detektion war erfolgreich, nur kein Vergleichswert vorhanden
     }
   }
 
