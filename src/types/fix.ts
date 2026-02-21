@@ -1,6 +1,6 @@
 import type { TempoMarker } from './track'
 
-export type FixKind = 'bpm' | 'key' | 'beatgrid' | 'duplicate-remove'
+export type FixKind = 'bpm' | 'key' | 'beatgrid' | 'duplicate-remove' | 'clipping-normalize'
 
 export interface FixOperation {
   kind: FixKind
@@ -18,6 +18,9 @@ export interface FixOperation {
   tempoMarkers?: TempoMarker[]
   // duplicate-remove
   groupId?: string
+  // clipping-normalize
+  peakLevelLinear?: number   // gemessener Peak (0.0–1.0)
+  targetPeakDb?: number      // Ziel in dBFS, default: -0.1
 }
 
 export type FixStatus = 'pending' | 'approved' | 'skipped'

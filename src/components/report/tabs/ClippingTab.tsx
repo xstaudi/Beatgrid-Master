@@ -1,5 +1,7 @@
 import { InfoItem } from './InfoItem'
+import { FixActionBar } from '@/components/report/FixActionBar'
 import { formatDuration } from '@/lib/utils/format'
+import { useFixStore } from '@/stores/fix-store'
 import type { TrackClippingResult } from '@/types/analysis'
 import type { PcmData } from '@/types/audio'
 import type { AudioFileHandle } from '@/lib/audio/file-access'
@@ -12,6 +14,12 @@ interface ClippingTabProps {
 }
 
 export function ClippingTab({ result }: ClippingTabProps) {
+  const hasFix = useFixStore((s) =>
+    s.fixes.some(
+      (f) => f.operation.trackId === result.trackId && f.operation.kind === 'clipping-normalize',
+    ),
+  )
+
   if (result.skipReason) {
     return <p className="text-sm text-muted-foreground">Skipped: {result.skipReason}</p>
   }
@@ -43,6 +51,9 @@ export function ClippingTab({ result }: ClippingTabProps) {
             )}
           </div>
         </div>
+      )}
+      {hasFix && (
+        <FixActionBar trackId={result.trackId} fixKind="clipping-normalize" />
       )}
     </div>
   )

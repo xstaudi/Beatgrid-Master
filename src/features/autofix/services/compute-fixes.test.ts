@@ -294,7 +294,7 @@ describe('computeFixes', () => {
   })
 
   describe('Non-fixable checks', () => {
-    it('should NOT create fixes for clipping results', () => {
+    it('should create clipping-normalize fix for error severity', () => {
       const track = makeTrack()
       const clippingResult: ClippingCheckResult = {
         type: 'clipping',
@@ -316,6 +316,40 @@ describe('computeFixes', () => {
           tracksWithWarnings: 0,
           tracksWithClipping: 1,
           avgPeakLevelDb: 0,
+        },
+      }
+
+      const fixes = computeFixes([track], makeResults([clippingResult]))
+      expect(fixes).toHaveLength(1)
+      expect(fixes[0].operation.kind).toBe('clipping-normalize')
+      expect(fixes[0].operation.peakLevelLinear).toBe(1)
+      expect(fixes[0].operation.targetPeakDb).toBe(-0.1)
+      expect(fixes[0].preview.before).toBe('0.0 dBFS')
+      expect(fixes[0].preview.after).toBe('-0.1 dBFS')
+    })
+
+    it('should NOT create clipping-normalize fix for warning/ok severity', () => {
+      const track = makeTrack()
+      const clippingResult: ClippingCheckResult = {
+        type: 'clipping',
+        tracks: [
+          {
+            trackId: 'rb-1',
+            overallSeverity: 'warning',
+            hasClipping: true,
+            clipCount: 2,
+            totalClippedDuration: 0.05,
+            peakLevelDb: -0.2,
+            peakLevelLinear: 0.98,
+            regions: [],
+          },
+        ],
+        libraryStats: {
+          totalTracks: 1,
+          tracksClean: 0,
+          tracksWithWarnings: 1,
+          tracksWithClipping: 0,
+          avgPeakLevelDb: -0.2,
         },
       }
 

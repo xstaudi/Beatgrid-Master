@@ -12,6 +12,7 @@ const KIND_LABELS: Record<FixKind, string> = {
   key: 'Key',
   beatgrid: 'Beatgrid',
   'duplicate-remove': 'Duplicates',
+  'clipping-normalize': 'Clipping',
 }
 
 const KIND_VARIANTS: Record<FixKind, 'default' | 'secondary' | 'destructive' | 'outline'> = {
@@ -19,6 +20,7 @@ const KIND_VARIANTS: Record<FixKind, 'default' | 'secondary' | 'destructive' | '
   key: 'secondary',
   beatgrid: 'outline',
   'duplicate-remove': 'destructive',
+  'clipping-normalize': 'secondary',
 }
 
 export function FixPreviewPanel() {
@@ -26,7 +28,7 @@ export function FixPreviewPanel() {
   const setFixStatus = useFixStore((s) => s.setFixStatus)
 
   // Group by kind (exclude duplicate-remove — handled by DuplicateResolutionCard)
-  const fixableKinds: FixKind[] = ['bpm', 'key', 'beatgrid']
+  const fixableKinds: FixKind[] = ['bpm', 'key', 'beatgrid', 'clipping-normalize']
   const grouped = fixableKinds
     .map((kind) => ({
       kind,

@@ -1,4 +1,5 @@
 export { checkClipping, checkClippingLibrary } from './services/clipping-check'
+export { normalizeClipping } from './services/clip-normalizer'
 export { ClippingSummaryCard } from './components/ClippingSummaryCard'
 export {
   CLIP_THRESHOLD,

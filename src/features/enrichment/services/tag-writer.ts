@@ -1,3 +1,4 @@
+import type { Tag } from 'taglib-wasm'
 import type { WriteBackResult } from '@/types/enrichment'
 
 let taglibModule: typeof import('taglib-wasm') | null = null
@@ -17,42 +18,34 @@ export function hasFileSystemAccess(): boolean {
 }
 
 /**
- * Tags in eine Audio-Datei schreiben.
+ * Tags in eine Audio-Datei schreiben via taglib-wasm applyTags.
  *
  * Chromium: Schreibt direkt via File System Access API (wenn FileHandle vorhanden).
  * Fallback: Download der modifizierten Datei.
  */
 export async function writeTagsToFile(
   fileHandle: FileSystemFileHandle | File,
-  tags: Record<string, string | number>,
+  tags: Partial<Tag>,
 ): Promise<WriteBackResult> {
   try {
     const taglib = await getTaglib()
 
-    // Datei lesen
-    let fileBuffer: ArrayBuffer
+    let fileData: File | Uint8Array
     let fileName: string
 
     if ('getFile' in fileHandle) {
       // FileSystemFileHandle (File System Access API)
       const file = await fileHandle.getFile()
-      fileBuffer = await file.arrayBuffer()
+      fileData = file
       fileName = file.name
     } else {
       // File Object (Fallback)
-      fileBuffer = await fileHandle.arrayBuffer()
+      fileData = fileHandle
       fileName = fileHandle.name
     }
 
-    // Tags schreiben via taglib-wasm
-    const modifiedBuffer = taglib.writeTags(
-      new Uint8Array(fileBuffer),
-      tags,
-    )
-
-    if (!modifiedBuffer) {
-      return { success: false, method: 'failed', error: 'taglib-wasm writeTags fehlgeschlagen' }
-    }
+    // Tags schreiben via taglib-wasm applyTags (gibt modifizierten Buffer zurueck)
+    const modifiedBuffer = await taglib.applyTags(fileData, tags)
 
     // Schreiben: File System Access API oder Download
     if ('getFile' in fileHandle && 'createWritable' in fileHandle) {
@@ -61,7 +54,7 @@ export async function writeTagsToFile(
         await writable.write(modifiedBuffer.buffer as ArrayBuffer)
         await writable.close()
         return { success: true, method: 'filesystem-api' }
-      } catch (error) {
+      } catch {
         // Permission denied oder anderer Fehler - Fallback auf Download
         return downloadFile(modifiedBuffer, fileName)
       }
@@ -106,7 +99,7 @@ function downloadFile(buffer: Uint8Array, fileName: string): WriteBackResult {
 export async function writeTagsBatch(
   entries: Array<{
     fileHandle: FileSystemFileHandle | File
-    tags: Record<string, string | number>
+    tags: Partial<Tag>
   }>,
   onProgress?: (completed: number, total: number) => void,
 ): Promise<WriteBackResult[]> {

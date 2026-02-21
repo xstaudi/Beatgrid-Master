@@ -4,6 +4,7 @@ import type {
   BpmCheckResult,
   KeyCheckResult,
   BeatgridCheckResult,
+  ClippingCheckResult,
 } from '@/types/analysis'
 import type { FixEntry, FixOperation } from '@/types/fix'
 import type { GeneratedBeatgrid } from '@/features/beatgrid'
@@ -151,6 +152,37 @@ function computeBeatgridGenerationFixes(
   return fixes
 }
 
+function computeClippingFixes(
+  trackMap: Map<string, Track>,
+  result: ClippingCheckResult,
+): FixEntry[] {
+  const fixes: FixEntry[] = []
+  for (const tr of result.tracks) {
+    if (tr.overallSeverity !== 'error' || tr.skipReason) continue
+
+    const track = trackMap.get(tr.trackId)
+    if (!track) continue
+
+    const op: FixOperation = {
+      kind: 'clipping-normalize',
+      trackId: tr.trackId,
+      sourceId: track.sourceId,
+      peakLevelLinear: tr.peakLevelLinear,
+      targetPeakDb: -0.1,
+    }
+    fixes.push({
+      operation: op,
+      status: 'pending',
+      preview: {
+        label: trackLabel(trackMap, tr.trackId),
+        before: `${tr.peakLevelDb.toFixed(1)} dBFS`,
+        after: '-0.1 dBFS',
+      },
+    })
+  }
+  return fixes
+}
+
 export function computeFixes(
   tracks: Track[],
   results: AnalysisResults,
@@ -177,6 +209,9 @@ export function computeFixes(
   if (generatedBeatgrids && generatedBeatgrids.size > 0) {
     fixes.push(...computeBeatgridGenerationFixes(trackMap, generatedBeatgrids))
   }
+
+  const clipResult = results.results.find((r): r is ClippingCheckResult => r.type === 'clipping')
+  if (clipResult) fixes.push(...computeClippingFixes(trackMap, clipResult))
 
   return fixes
 }
