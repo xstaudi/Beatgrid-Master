@@ -25,6 +25,7 @@ interface TrackStore {
   setActivePlaylist: (id: string | null) => void
   getActiveTracks: () => Track[]
   applyGeneratedBeatgrid: (trackId: string, markers: TempoMarker[]) => void
+  updateTrackDuration: (trackId: string, duration: number) => void
   clearLibrary: () => void
   getTrackById: (id: string) => Track | undefined
 }
@@ -136,6 +137,14 @@ export const useTrackStore = create<TrackStore>((set, get) => ({
     set((state) => ({
       tracks: state.tracks.map((t) =>
         t.id === trackId ? { ...t, tempoMarkers: markers } : t,
+      ),
+    }))
+  },
+
+  updateTrackDuration: (trackId, duration) => {
+    set((state) => ({
+      tracks: state.tracks.map((t) =>
+        t.id === trackId && t.duration === 0 ? { ...t, duration } : t,
       ),
     }))
   },

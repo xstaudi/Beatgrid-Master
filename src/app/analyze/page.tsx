@@ -32,7 +32,7 @@ const STEP_TITLES: Record<Step, string> = {
   import: 'Bibliothek importieren',
   classification: 'Tracks klassifizieren',
   config: 'Analyse konfigurieren',
-  processing: 'Analysiere...',
+  processing: 'Analyse läuft',
 }
 
 export default function AnalyzePage() {
@@ -195,6 +195,7 @@ export default function AnalyzePage() {
       },
       onComplete: (trackId, pcm) => {
         useProcessingStore.getState().storeResult(trackId, pcm)
+        useTrackStore.getState().updateTrackDuration(trackId, pcm.duration)
         decodeCount++
         checkDone()
       },

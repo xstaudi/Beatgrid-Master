@@ -11,7 +11,7 @@ import type { PcmData } from '@/types/audio'
 import type { AudioFileHandle } from '@/lib/audio/file-access'
 import type { BeatDriftPoint, ClipRegion } from '@/types/analysis'
 import type { TempoMarker } from '@/types/track'
-import { downsampleForWaveform } from '@/lib/audio/waveform-utils'
+import { downsampleForWaveform, type WaveformBucket } from '@/lib/audio/waveform-utils'
 
 interface WaveformPlayerProps {
   pcmData: PcmData | null
@@ -44,6 +44,7 @@ export function WaveformPlayer({
   const containerRef = useRef<HTMLDivElement>(null)
   const workerRef = useRef<Worker | null>(null)
   const bandDataRef = useRef<WaveformBandData | null>(null)
+  const fallbackBucketsRef = useRef<WaveformBucket[] | null>(null)
   const rafRenderRef = useRef<number>(0)
 
   const [isComputing, setIsComputing] = useState(false)
@@ -52,17 +53,34 @@ export function WaveformPlayer({
   const { audioRef, isPlaying, currentTime, canPlay, toggle, seek } =
     useAudioPlayback(audioFileHandle)
 
-  const { zoomLevel, viewStart, viewEnd, zoomLevels } =
-    useWaveformZoom(duration, canvasRef)
+  // Nutze pcmData.duration als Fallback wenn track.duration fehlt (z.B. Audio-Folder Import)
+  const effectiveDuration = duration > 0 ? duration : (pcmData?.duration ?? 0)
+
+  const { zoomLevel, viewStart, viewEnd, zoomLevels, isDragging, consumeDragGesture } =
+    useWaveformZoom(effectiveDuration, canvasRef)
 
   const effectiveZoom = zoomEnabled ? zoomLevel : 1
   const effectiveViewStart = zoomEnabled ? viewStart : 0
-  const effectiveViewEnd = zoomEnabled ? viewEnd : duration
+  const effectiveViewEnd = zoomEnabled ? viewEnd : effectiveDuration
+
+  // --- Fallback-Buckets cachen (nur bei pcmData-Wechsel, nicht jedes Frame) ---
+  useEffect(() => {
+    if (!pcmData || bandReady) {
+      fallbackBucketsRef.current = null
+      return
+    }
+    const width = containerRef.current?.getBoundingClientRect().width ?? 800
+    fallbackBucketsRef.current = downsampleForWaveform(
+      pcmData.samples,
+      Math.max(100, Math.floor(width)),
+    )
+  }, [pcmData, bandReady])
 
   // --- Band computation via Worker ---
   useEffect(() => {
     if (!pcmData) {
       bandDataRef.current = null
+      fallbackBucketsRef.current = null
       setBandReady(false)
       return
     }
@@ -88,8 +106,14 @@ export function WaveformPlayer({
         setBandReady(true)
         setIsComputing(false)
       } else if (msg.type === 'error') {
+        console.error('[WaveformPlayer] Worker-Fehler:', msg.message)
         setIsComputing(false)
       }
+    }
+
+    worker.onerror = (e) => {
+      console.error('[WaveformPlayer] Worker konnte nicht geladen werden:', e.message)
+      setIsComputing(false)
     }
 
     const request: WaveformWorkerRequest = {
@@ -99,7 +123,8 @@ export function WaveformPlayer({
       sampleRate: pcmData.sampleRate,
       bucketCount,
     }
-    worker.postMessage(request, [pcmData.samples.buffer.slice(0)])
+    // Kein Transfer-Array: samples werden geklont (original bleibt fuer Fallback nutzbar)
+    worker.postMessage(request)
 
     return () => {
       worker.terminate()
@@ -132,14 +157,13 @@ export function WaveformPlayer({
     if (!ctx) return
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
-    const fallbackBuckets = (!bandReady && pcmData)
-      ? downsampleForWaveform(pcmData.samples, Math.max(100, Math.floor(width)))
-      : null
+    // Fallback aus Ref (gecacht, nicht per-frame berechnet)
+    const fallbackBuckets = bandReady ? null : fallbackBucketsRef.current
 
     renderWaveformCanvas(ctx, {
       width,
       height,
-      duration,
+      duration: effectiveDuration,
       currentTime,
       canPlay,
       visibleStart: effectiveViewStart,
@@ -150,7 +174,7 @@ export function WaveformPlayer({
       beatDriftPoints,
       clipRegions,
     })
-  }, [bandReady, pcmData, duration, currentTime, canPlay,
+  }, [bandReady, effectiveDuration, currentTime, canPlay,
     tempoMarkers, beatDriftPoints, clipRegions,
     effectiveViewStart, effectiveViewEnd])
 
@@ -176,10 +200,11 @@ export function WaveformPlayer({
     return () => observer.disconnect()
   }, [render])
 
-  // Click-to-seek (mit Zoom-Korrektur)
+  // Click-to-seek (mit Zoom-Korrektur) — unterdrückt nach Drag
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (!canPlay || duration <= 0) return
+      if (consumeDragGesture()) return
+      if (!canPlay || effectiveDuration <= 0) return
       const canvas = canvasRef.current
       if (!canvas) return
       const rect = canvas.getBoundingClientRect()
@@ -187,7 +212,7 @@ export function WaveformPlayer({
       const visDuration = effectiveViewEnd - effectiveViewStart
       seek(effectiveViewStart + ratio * visDuration)
     },
-    [canPlay, duration, seek, effectiveViewStart, effectiveViewEnd],
+    [consumeDragGesture, canPlay, effectiveDuration, seek, effectiveViewStart, effectiveViewEnd],
   )
 
   // Keyboard-Seek
@@ -195,10 +220,10 @@ export function WaveformPlayer({
     (e: React.KeyboardEvent<HTMLCanvasElement>) => {
       if (!canPlay) return
       const step = e.shiftKey ? 10 : 5
-      if (e.key === 'ArrowRight') { e.preventDefault(); seek(Math.min(duration, currentTime + step)) }
+      if (e.key === 'ArrowRight') { e.preventDefault(); seek(Math.min(effectiveDuration, currentTime + step)) }
       if (e.key === 'ArrowLeft') { e.preventDefault(); seek(Math.max(0, currentTime - step)) }
     },
-    [canPlay, duration, currentTime, seek],
+    [canPlay, effectiveDuration, currentTime, seek],
   )
 
   if (!pcmData) {
@@ -224,14 +249,16 @@ export function WaveformPlayer({
           role="img"
           aria-label={`Waveform – ${formatTime(duration)}`}
           tabIndex={canPlay ? 0 : -1}
-          className="absolute inset-0 cursor-pointer focus-visible:ring-2 focus-visible:ring-ring"
+          className={`absolute inset-0 focus-visible:ring-2 focus-visible:ring-ring ${
+            zoomEnabled && effectiveZoom > 1
+              ? isDragging ? 'cursor-grabbing' : 'cursor-grab'
+              : 'cursor-pointer'
+          }`}
           onClick={handleCanvasClick}
           onKeyDown={handleCanvasKeyDown}
         />
         {isComputing && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-            <p className="text-xs text-muted-foreground animate-pulse">Analyzing frequencies...</p>
-          </div>
+          <div className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-primary/60 animate-pulse" />
         )}
         {zoomEnabled && effectiveZoom > 1 && (
           <div className="absolute top-1 right-1 flex gap-0.5">

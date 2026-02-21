@@ -1,12 +1,17 @@
-import { useState, useCallback, useEffect, type RefObject } from 'react'
+import { useState, useCallback, useEffect, useRef, type RefObject } from 'react'
 
 const ZOOM_LEVELS = [1, 2, 4, 8, 16] as const
 const MIN_ZOOM = 1
 const MAX_ZOOM = 16
+const DRAG_THRESHOLD_PX = 4
 
 export function useWaveformZoom(duration: number, canvasRef: RefObject<HTMLCanvasElement | null>) {
   const [zoomLevel, setZoomLevel] = useState(1)
   const [viewCenter, setViewCenter] = useState(duration / 2)
+  const [isDragging, setIsDragging] = useState(false)
+
+  // Ref um nach dem Drag dem onClick mitzuteilen: nicht seekbar
+  const didDragRef = useRef(false)
 
   const visibleDuration = duration / zoomLevel
   const viewStart = Math.max(0, viewCenter - visibleDuration / 2)
@@ -31,7 +36,14 @@ export function useWaveformZoom(duration: number, canvasRef: RefObject<HTMLCanva
     setViewCenter(Math.max(0, Math.min(duration, sec)))
   }, [duration])
 
-  // Wheel-Handler: Ctrl+Scroll = Zoom, Scroll = Pan
+  // Gibt true zurueck wenn der letzte Mousedown ein Drag war (und setzt das Flag zurueck)
+  const consumeDragGesture = useCallback(() => {
+    const wasDragging = didDragRef.current
+    didDragRef.current = false
+    return wasDragging
+  }, [])
+
+  // Wheel: Ctrl+Scroll = Zoom, Scroll = Pan | Mousedown+Drag = Pan | Dblclick = Reset
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -40,7 +52,6 @@ export function useWaveformZoom(duration: number, canvasRef: RefObject<HTMLCanva
       e.preventDefault()
 
       if (e.ctrlKey || e.metaKey) {
-        // Zoom
         const rect = canvas.getBoundingClientRect()
         const mouseX = e.clientX - rect.left
         const ratio = mouseX / rect.width
@@ -52,12 +63,9 @@ export function useWaveformZoom(duration: number, canvasRef: RefObject<HTMLCanva
         const nextIdx = Math.max(0, Math.min(ZOOM_LEVELS.length - 1,
           currentIdx === -1 ? (direction > 0 ? 1 : 0) : currentIdx + direction,
         ))
-        const nextLevel = ZOOM_LEVELS[nextIdx]
-
-        setZoomLevel(nextLevel)
+        setZoomLevel(ZOOM_LEVELS[nextIdx])
         setViewCenter(mouseSec)
       } else if (zoomLevel > 1) {
-        // Pan
         const panAmount = (e.deltaX !== 0 ? e.deltaX : e.deltaY) * 0.001 * duration / zoomLevel
         setViewCenter((prev) => Math.max(0, Math.min(duration, prev + panAmount)))
       }
@@ -68,12 +76,48 @@ export function useWaveformZoom(duration: number, canvasRef: RefObject<HTMLCanva
       setViewCenter(duration / 2)
     }
 
+    const handleMouseDown = (e: MouseEvent) => {
+      if (zoomLevel <= 1) return
+      e.preventDefault()
+
+      let lastX = e.clientX
+      let totalDelta = 0
+      didDragRef.current = false
+      setIsDragging(true)
+
+      const handleMouseMove = (ev: MouseEvent) => {
+        const deltaX = ev.clientX - lastX
+        lastX = ev.clientX
+        totalDelta += Math.abs(deltaX)
+
+        if (totalDelta >= DRAG_THRESHOLD_PX) {
+          didDragRef.current = true
+        }
+
+        const rect = canvas.getBoundingClientRect()
+        // Negative deltaX = Maus nach links = Inhalt nach rechts = viewCenter nimmt ab
+        const deltaSec = -(deltaX / rect.width) * (duration / zoomLevel)
+        setViewCenter((prev) => Math.max(0, Math.min(duration, prev + deltaSec)))
+      }
+
+      const handleMouseUp = () => {
+        setIsDragging(false)
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+      }
+
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+    }
+
     canvas.addEventListener('wheel', handleWheel, { passive: false })
     canvas.addEventListener('dblclick', handleDblClick)
+    canvas.addEventListener('mousedown', handleMouseDown)
 
     return () => {
       canvas.removeEventListener('wheel', handleWheel)
       canvas.removeEventListener('dblclick', handleDblClick)
+      canvas.removeEventListener('mousedown', handleMouseDown)
     }
   }, [canvasRef, duration, zoomLevel, correctedStart])
 
@@ -81,6 +125,8 @@ export function useWaveformZoom(duration: number, canvasRef: RefObject<HTMLCanva
     zoomLevel,
     viewStart: correctedStart,
     viewEnd: Math.min(duration, correctedStart + visibleDuration),
+    isDragging,
+    consumeDragGesture,
     zoomTo,
     resetZoom,
     panTo,
