@@ -55,24 +55,42 @@ export function renderWaveformCanvas(
   ctx.fillStyle = BG_COLOR
   ctx.fillRect(0, 0, width, height)
 
-  // 3-Band Waveform
+  // 3-Band Waveform (pixel-basiert: 1 fillRect pro Pixel fuer stufenfreien Zoom)
   if (bandData) {
     const { buckets } = bandData
-    const startBucket = Math.floor((visibleStart / effectiveDuration) * buckets.length)
-    const endBucket = Math.ceil((visibleEnd / effectiveDuration) * buckets.length)
-    const visibleBuckets = buckets.slice(startBucket, endBucket)
-    const barWidth = visibleBuckets.length > 0 ? width / visibleBuckets.length : 1
-
+    const totalBuckets = buckets.length
+    const startF = (visibleStart / effectiveDuration) * totalBuckets
+    const endF = (visibleEnd / effectiveDuration) * totalBuckets
     const playProgress = currentTime / effectiveDuration
 
-    for (let i = 0; i < visibleBuckets.length; i++) {
-      const { min, max, low, mid, high } = visibleBuckets[i]
-      const x = i * barWidth
+    for (let px = 0; px < width; px++) {
+      // Bucket-Range fuer dieses Pixel
+      const bStart = startF + (px / width) * (endF - startF)
+      const bEnd = startF + ((px + 1) / width) * (endF - startF)
+      const iStart = Math.max(0, Math.floor(bStart))
+      const iEnd = Math.min(totalBuckets - 1, Math.floor(bEnd))
 
-      // Kontrast-verstaerkte Farbmischung: Power-Kurve macht dominantes Band bold (CDJ-3000 Style)
-      const pL = low * low * low
-      const pM = mid * mid * mid
-      const pH = high * high * high
+      // Merge: min/max aus allen Buckets, Bands = Durchschnitt
+      let mergedMin = 0, mergedMax = 0, mergedLow = 0, mergedMid = 0, mergedHigh = 0
+      let count = 0
+      for (let j = iStart; j <= iEnd; j++) {
+        const b = buckets[j]
+        if (b.max > mergedMax) mergedMax = b.max
+        if (b.min < mergedMin) mergedMin = b.min
+        mergedLow += b.low
+        mergedMid += b.mid
+        mergedHigh += b.high
+        count++
+      }
+      if (count === 0) continue
+      mergedLow /= count
+      mergedMid /= count
+      mergedHigh /= count
+
+      // Kontrast-verstaerkte Farbmischung (CDJ-3000 Style)
+      const pL = mergedLow * mergedLow * mergedLow
+      const pM = mergedMid * mergedMid * mergedMid
+      const pH = mergedHigh * mergedHigh * mergedHigh
       const total = pL + pM + pH
       let r: number, g: number, b: number
       if (total > 0) {
@@ -86,15 +104,14 @@ export function renderWaveformCanvas(
         r = COLOR_MID.r; g = COLOR_MID.g; b = COLOR_MID.b
       }
 
-      const bucketProgress = (startBucket + i) / buckets.length
+      const bucketProgress = ((iStart + iEnd) / 2) / totalBuckets
       const alpha = bucketProgress <= playProgress ? 1.0 : 0.7
 
       ctx.fillStyle = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${alpha})`
-      const topHeight = Math.max(0.5, Math.abs(max) * centerY)
-      const bottomHeight = Math.max(0.5, Math.abs(min) * centerY)
-      const w = Math.ceil(barWidth)
-      ctx.fillRect(x, centerY - topHeight, w, topHeight)
-      ctx.fillRect(x, centerY, w, bottomHeight)
+      const topHeight = Math.max(0.5, Math.abs(mergedMax) * centerY)
+      const bottomHeight = Math.max(0.5, Math.abs(mergedMin) * centerY)
+      ctx.fillRect(px, centerY - topHeight, 1, topHeight)
+      ctx.fillRect(px, centerY, 1, bottomHeight)
     }
   } else if (fallbackBuckets) {
     const barWidth = width / fallbackBuckets.length

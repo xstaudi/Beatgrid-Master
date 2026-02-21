@@ -4,7 +4,7 @@ import { useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react
 import { Play, Pause } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAudioPlayback } from '../hooks/useAudioPlayback'
-import { useWaveformZoom } from '../hooks/useWaveformZoom'
+import { useWaveformZoom, MAX_ZOOM } from '../hooks/useWaveformZoom'
 import { renderWaveformCanvas } from '../services/canvas-renderer'
 import type { WaveformBandData, WaveformWorkerRequest, WaveformWorkerResponse, BpmSegment } from '../types'
 import type { PcmData } from '@/types/audio'
@@ -106,9 +106,10 @@ export function WaveformPlayer({
     }
 
     const container = containerRef.current
-    const bucketCount = container
-      ? Math.max(200, Math.floor(container.getBoundingClientRect().width))
+    const containerWidth = container
+      ? Math.floor(container.getBoundingClientRect().width)
       : 800
+    const bucketCount = Math.max(200, containerWidth * MAX_ZOOM)
 
     setIsComputing(true)
     setBandReady(false)
