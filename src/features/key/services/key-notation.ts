@@ -2,6 +2,8 @@
  * Musical key notation system: Musical <-> Camelot <-> Open Key conversions.
  */
 
+import type { KeyNotation } from '../constants'
+
 export interface KeyInfo {
   musical: string      // "Am", "C", "F#m"
   camelot: string      // "8A", "11B"
@@ -141,6 +143,31 @@ export function getRelativeKey(key: string): string | null {
  * Get harmonically compatible keys (Camelot wheel neighbors).
  * Returns keys that are +1, -1 on the wheel, plus the relative key.
  */
+/**
+ * Detect which notation system a key string uses.
+ */
+export function detectKeyNotation(key: string): KeyNotation {
+  const trimmed = key.trim()
+  if (/^\d{1,2}[ABab]$/.test(trimmed)) return 'camelot'
+  if (/^\d{1,2}[mdMD]$/.test(trimmed)) return 'openKey'
+  return 'musical'
+}
+
+/**
+ * Convert any key format to the target notation.
+ */
+export function keyToNotation(key: string, notation: KeyNotation): string | null {
+  const musical = normalizeKey(key)
+  if (!musical) return null
+  const info = byMusical.get(musical)
+  if (!info) return null
+  switch (notation) {
+    case 'musical': return info.musical
+    case 'camelot': return info.camelot
+    case 'openKey': return info.openKey
+  }
+}
+
 export function getCompatibleKeys(key: string): string[] {
   const normalized = normalizeKey(key)
   if (!normalized) return []

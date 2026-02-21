@@ -6,6 +6,8 @@ export {
   normalizeKey,
   getRelativeKey,
   getCompatibleKeys,
+  detectKeyNotation,
+  keyToNotation,
 } from './services/key-notation'
 export type { KeyInfo } from './services/key-notation'
 export { KeySummaryCard } from './components/KeySummaryCard'
