@@ -1,4 +1,7 @@
 export { WaveformPlayer } from './components/WaveformPlayer'
 export { useAudioPlayback } from './hooks/useAudioPlayback'
+export { useWaveformZoom } from './hooks/useWaveformZoom'
+export { renderWaveformCanvas } from './services/canvas-renderer'
 export { computeBandData } from './services/band-analyzer'
 export type { WaveformBandBucket, WaveformBandData } from './types'
+export type { CanvasRenderOptions } from './services/canvas-renderer'

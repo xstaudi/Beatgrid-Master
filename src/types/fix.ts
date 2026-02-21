@@ -1,3 +1,5 @@
+import type { TempoMarker } from './track'
+
 export type FixKind = 'bpm' | 'key' | 'beatgrid' | 'duplicate-remove'
 
 export interface FixOperation {
@@ -13,6 +15,7 @@ export interface FixOperation {
   // beatgrid
   newDownbeatSec?: number
   bpm?: number
+  tempoMarkers?: TempoMarker[]
   // duplicate-remove
   groupId?: string
 }

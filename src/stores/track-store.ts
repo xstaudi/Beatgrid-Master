@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { DjSoftware, Track } from '@/types/track'
+import type { DjSoftware, Track, TempoMarker } from '@/types/track'
 import type { Playlist } from '@/types/playlist'
 import type { ParseWarning } from '@/lib/adapters/types'
 import { createDirectoryAdapter, parseLibraryXml } from '@/lib/adapters'
@@ -24,6 +24,7 @@ interface TrackStore {
   importAudioFolder: (handle: FileSystemDirectoryHandle) => Promise<void>
   setActivePlaylist: (id: string | null) => void
   getActiveTracks: () => Track[]
+  applyGeneratedBeatgrid: (trackId: string, markers: TempoMarker[]) => void
   clearLibrary: () => void
   getTrackById: (id: string) => Track | undefined
 }
@@ -129,6 +130,14 @@ export const useTrackStore = create<TrackStore>((set, get) => ({
       set({ isLoading: false })
       throw error
     }
+  },
+
+  applyGeneratedBeatgrid: (trackId, markers) => {
+    set((state) => ({
+      tracks: state.tracks.map((t) =>
+        t.id === trackId ? { ...t, tempoMarkers: markers } : t,
+      ),
+    }))
   },
 
   setActivePlaylist: (id: string | null) => {

@@ -38,6 +38,8 @@ interface TrackDetailSheetProps {
 
 export function TrackDetailSheet({ trackId, open, onOpenChange }: TrackDetailSheetProps) {
   const results = useAnalysisStore((s) => s.results)
+  const generatedBeatgrids = useAnalysisStore((s) => s.generatedBeatgrids)
+  const rawBeatResults = useAnalysisStore((s) => s.rawBeatResults)
   const track = useTrackStore((s) => (trackId ? s.tracks.find((t) => t.id === trackId) : undefined))
   const pcmCache = useProcessingStore((s) => s.pcmCache)
   const audioFileHandles = useProcessingStore((s) => s.audioFileHandles)
@@ -102,7 +104,16 @@ export function TrackDetailSheet({ trackId, open, onOpenChange }: TrackDetailShe
             )}
             {trackBeat && (
               <TabsContent value="beatgrid" className="mt-0">
-                <BeatgridTab result={trackBeat} pcmData={pcmData} audioFileHandle={audioFileHandle} tempoMarkers={track.tempoMarkers} duration={track.duration} />
+                <BeatgridTab
+                  result={trackBeat}
+                  pcmData={pcmData}
+                  audioFileHandle={audioFileHandle}
+                  tempoMarkers={track.tempoMarkers}
+                  duration={track.duration}
+                  trackId={trackId}
+                  generatedGrid={generatedBeatgrids.get(trackId) ?? null}
+                  rawBeatTimestamps={rawBeatResults.get(trackId)?.beatTimestamps}
+                />
               </TabsContent>
             )}
             {trackBpm && (

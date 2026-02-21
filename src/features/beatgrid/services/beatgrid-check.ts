@@ -19,7 +19,7 @@ function worstSeverity(a: Severity, b: Severity): Severity {
   return order[a] >= order[b] ? a : b
 }
 
-function buildExpectedBeats(markers: TempoMarker[], duration: number): number[] {
+export function buildExpectedBeats(markers: TempoMarker[], duration: number): number[] {
   const beats: number[] = []
 
   if (markers.length === 0) return beats
@@ -112,7 +112,7 @@ export function checkBeatgrid(track: Track, rawBeat: RawBeatResult | null): Trac
     return {
       ...base,
       overallSeverity: 'warning',
-      confidence: rawBeat.avgConfidence * 100,
+      confidence: Math.min(100, rawBeat.avgConfidence * 100),
       driftPoints: [],
       avgDriftMs: 0,
       maxDriftMs: 0,
@@ -182,7 +182,7 @@ export function checkBeatgrid(track: Track, rawBeat: RawBeatResult | null): Trac
   return {
     ...base,
     overallSeverity,
-    confidence: rawBeat.avgConfidence * 100,
+    confidence: Math.min(100, rawBeat.avgConfidence * 100),
     driftPoints,
     avgDriftMs,
     maxDriftMs: maxAbsDrift,

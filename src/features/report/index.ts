@@ -2,3 +2,4 @@ export { calculateHealthScore, type HealthScoreResult, type CheckScore } from '.
 export { useHealthScore } from './hooks/useHealthScore'
 export { useUnifiedTrackData, type UnifiedTrackRow } from './hooks/useUnifiedTrackData'
 export { CHECK_LABELS, scoreColor, RECHARTS_TOOLTIP_STYLE } from './constants'
+export { SaveSelectionTable } from './components/SaveSelectionTable'

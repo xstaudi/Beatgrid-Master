@@ -2,13 +2,14 @@ import { create } from 'zustand'
 import type { Track } from '@/types/track'
 import type { AnalysisResults, DuplicateCheckResult } from '@/types/analysis'
 import type { FixEntry, FixKind, FixOperation, FixStatus } from '@/types/fix'
+import type { GeneratedBeatgrid } from '@/features/beatgrid'
 import { computeFixes } from '@/features/autofix/services/compute-fixes'
 
 interface FixStore {
   fixes: FixEntry[]
   keptDuplicates: Map<string, string> // groupId → trackId to keep
 
-  computeAndSetFixes: (tracks: Track[], results: AnalysisResults) => void
+  computeAndSetFixes: (tracks: Track[], results: AnalysisResults, generatedBeatgrids?: Map<string, GeneratedBeatgrid>) => void
   setFixStatus: (trackId: string, kind: FixKind, status: FixStatus) => void
   approveAll: () => void
   skipAll: () => void
@@ -21,8 +22,8 @@ export const useFixStore = create<FixStore>((set, get) => ({
   fixes: [],
   keptDuplicates: new Map(),
 
-  computeAndSetFixes: (tracks, results) => {
-    const fixes = computeFixes(tracks, results)
+  computeAndSetFixes: (tracks, results, generatedBeatgrids) => {
+    const fixes = computeFixes(tracks, results, generatedBeatgrids)
 
     // Set default kept duplicates from analysis recommendations
     const dupResult = results.results.find(

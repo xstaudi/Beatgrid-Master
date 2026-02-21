@@ -1,23 +1,17 @@
 'use client'
 
 import { useRef, useEffect, useCallback, useState } from 'react'
-import { Play, Pause, Volume2 } from 'lucide-react'
+import { Play, Pause } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAudioPlayback } from '../hooks/useAudioPlayback'
+import { useWaveformZoom } from '../hooks/useWaveformZoom'
+import { renderWaveformCanvas } from '../services/canvas-renderer'
 import type { WaveformBandData, WaveformWorkerRequest, WaveformWorkerResponse } from '../types'
 import type { PcmData } from '@/types/audio'
 import type { AudioFileHandle } from '@/lib/audio/file-access'
 import type { BeatDriftPoint, ClipRegion } from '@/types/analysis'
 import type { TempoMarker } from '@/types/track'
 import { downsampleForWaveform } from '@/lib/audio/waveform-utils'
-
-// Rekordbox-style colors
-const COLOR_LOW = { r: 0, g: 212, b: 255 }     // Cyan #00D4FF
-const COLOR_MID = { r: 91, g: 63, b: 255 }      // Violet #5B3FFF
-const COLOR_HIGH = { r: 224, g: 224, b: 255 }    // White/Blue #E0E0FF
-const BG_COLOR = '#0A0A0F'
-const PLAYHEAD_COLOR = '#FFFFFF'
-const BEAT_GRID_ALPHA = 0.3
 
 interface WaveformPlayerProps {
   pcmData: PcmData | null
@@ -26,6 +20,7 @@ interface WaveformPlayerProps {
   beatDriftPoints?: BeatDriftPoint[]
   tempoMarkers?: TempoMarker[]
   clipRegions?: ClipRegion[]
+  zoomEnabled?: boolean
   className?: string
 }
 
@@ -42,6 +37,7 @@ export function WaveformPlayer({
   beatDriftPoints,
   tempoMarkers,
   clipRegions,
+  zoomEnabled = false,
   className,
 }: WaveformPlayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -56,6 +52,13 @@ export function WaveformPlayer({
   const { audioRef, isPlaying, currentTime, canPlay, toggle, seek } =
     useAudioPlayback(audioFileHandle)
 
+  const { zoomLevel, viewStart, viewEnd, zoomLevels } =
+    useWaveformZoom(duration, canvasRef)
+
+  const effectiveZoom = zoomEnabled ? zoomLevel : 1
+  const effectiveViewStart = zoomEnabled ? viewStart : 0
+  const effectiveViewEnd = zoomEnabled ? viewEnd : duration
+
   // --- Band computation via Worker ---
   useEffect(() => {
     if (!pcmData) {
@@ -65,7 +68,9 @@ export function WaveformPlayer({
     }
 
     const container = containerRef.current
-    const bucketCount = container ? Math.max(200, Math.floor(container.getBoundingClientRect().width)) : 800
+    const bucketCount = container
+      ? Math.max(200, Math.floor(container.getBoundingClientRect().width))
+      : 800
 
     setIsComputing(true)
     setBandReady(false)
@@ -113,131 +118,43 @@ export function WaveformPlayer({
     const width = rect.width
     const height = rect.height
 
-    canvas.width = width * dpr
-    canvas.height = height * dpr
-    canvas.style.width = `${width}px`
-    canvas.style.height = `${height}px`
+    // Resize-Guard: nur bei Dimensionsaenderung
+    const newW = Math.round(width * dpr)
+    const newH = Math.round(height * dpr)
+    if (canvas.width !== newW || canvas.height !== newH) {
+      canvas.width = newW
+      canvas.height = newH
+      canvas.style.width = `${width}px`
+      canvas.style.height = `${height}px`
+    }
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    ctx.scale(dpr, dpr)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
-    // Background
-    ctx.fillStyle = BG_COLOR
-    ctx.fillRect(0, 0, width, height)
+    const fallbackBuckets = (!bandReady && pcmData)
+      ? downsampleForWaveform(pcmData.samples, Math.max(100, Math.floor(width)))
+      : null
 
-    const centerY = height / 2
-    const effectiveDuration = duration > 0 ? duration : 1
+    renderWaveformCanvas(ctx, {
+      width,
+      height,
+      duration,
+      currentTime,
+      canPlay,
+      visibleStart: effectiveViewStart,
+      visibleEnd: effectiveViewEnd,
+      bandData: bandReady ? bandDataRef.current : null,
+      fallbackBuckets,
+      tempoMarkers,
+      beatDriftPoints,
+      clipRegions,
+    })
+  }, [bandReady, pcmData, duration, currentTime, canPlay,
+    tempoMarkers, beatDriftPoints, clipRegions,
+    effectiveViewStart, effectiveViewEnd])
 
-    if (bandReady && bandDataRef.current) {
-      // 3-Band colored waveform
-      const { buckets } = bandDataRef.current
-      const barWidth = width / buckets.length
-
-      for (let i = 0; i < buckets.length; i++) {
-        const { min, max, low, mid, high } = buckets[i]
-        const x = i * barWidth
-
-        // Color = weighted mix of band colors
-        const r = low * COLOR_LOW.r + mid * COLOR_MID.r + high * COLOR_HIGH.r
-        const g = low * COLOR_LOW.g + mid * COLOR_MID.g + high * COLOR_HIGH.g
-        const b = low * COLOR_LOW.b + mid * COLOR_MID.b + high * COLOR_HIGH.b
-
-        // "Played" region brightening
-        const playProgress = currentTime / effectiveDuration
-        const bucketProgress = i / buckets.length
-        const alpha = bucketProgress <= playProgress ? 1.0 : 0.7
-
-        ctx.fillStyle = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${alpha})`
-
-        // Draw mirrored bars from center
-        const topHeight = Math.max(0.5, Math.abs(max) * centerY)
-        const bottomHeight = Math.max(0.5, Math.abs(min) * centerY)
-
-        ctx.fillRect(x, centerY - topHeight, Math.max(1, barWidth - 0.5), topHeight)
-        ctx.fillRect(x, centerY, Math.max(1, barWidth - 0.5), bottomHeight)
-      }
-    } else if (pcmData) {
-      // Fallback: mono-color waveform while computing
-      const bucketCount = Math.max(100, Math.floor(width))
-      const buckets = downsampleForWaveform(pcmData.samples, bucketCount)
-      const barWidth = width / buckets.length
-
-      ctx.fillStyle = 'rgba(0, 212, 255, 0.5)'
-      for (let i = 0; i < buckets.length; i++) {
-        const { min, max } = buckets[i]
-        const x = i * barWidth
-        const topHeight = Math.max(0.5, Math.abs(max) * centerY)
-        const bottomHeight = Math.max(0.5, Math.abs(min) * centerY)
-        ctx.fillRect(x, centerY - topHeight, Math.max(1, barWidth - 0.5), topHeight)
-        ctx.fillRect(x, centerY, Math.max(1, barWidth - 0.5), bottomHeight)
-      }
-    }
-
-    // Clipping regions overlay
-    if (clipRegions && clipRegions.length > 0) {
-      ctx.fillStyle = 'rgba(255, 50, 50, 0.25)'
-      for (const region of clipRegions) {
-        const x = (region.startTime / effectiveDuration) * width
-        const w = Math.max(1, ((region.endTime - region.startTime) / effectiveDuration) * width)
-        ctx.fillRect(x, 0, w, height)
-      }
-    }
-
-    // Beat grid overlay
-    if (tempoMarkers && tempoMarkers.length > 0) {
-      ctx.strokeStyle = PLAYHEAD_COLOR
-      ctx.lineWidth = 1
-      ctx.globalAlpha = BEAT_GRID_ALPHA
-
-      ctx.beginPath()
-      for (const marker of tempoMarkers) {
-        if (marker.bpm <= 0) continue
-        const beatIntervalMs = 60000 / marker.bpm
-        let posMs = marker.position
-        while (posMs < effectiveDuration * 1000) {
-          const x = (posMs / (effectiveDuration * 1000)) * width
-          ctx.moveTo(x, 0)
-          ctx.lineTo(x, height)
-          posMs += beatIntervalMs
-        }
-      }
-      ctx.stroke()
-      ctx.globalAlpha = 1
-    }
-
-    // Detected beat drift points
-    if (beatDriftPoints && beatDriftPoints.length > 0) {
-      ctx.strokeStyle = 'rgba(255, 200, 50, 0.5)'
-      ctx.lineWidth = 1
-      ctx.setLineDash([3, 3])
-
-      ctx.beginPath()
-      for (const point of beatDriftPoints) {
-        const x = (point.positionMs / (effectiveDuration * 1000)) * width
-        ctx.moveTo(x, 0)
-        ctx.lineTo(x, height)
-      }
-      ctx.stroke()
-      ctx.setLineDash([])
-    }
-
-    // Playhead cursor
-    if (canPlay && currentTime > 0) {
-      const playheadX = (currentTime / effectiveDuration) * width
-      ctx.strokeStyle = PLAYHEAD_COLOR
-      ctx.lineWidth = 2
-      ctx.globalAlpha = 0.9
-
-      ctx.beginPath()
-      ctx.moveTo(playheadX, 0)
-      ctx.lineTo(playheadX, height)
-      ctx.stroke()
-      ctx.globalAlpha = 1
-    }
-  }, [bandReady, pcmData, duration, currentTime, canPlay, tempoMarkers, beatDriftPoints, clipRegions])
-
-  // Render loop: re-render on every animation frame during playback
+  // Render loop
   useEffect(() => {
     if (isPlaying) {
       const loop = () => {
@@ -247,11 +164,10 @@ export function WaveformPlayer({
       rafRenderRef.current = requestAnimationFrame(loop)
       return () => cancelAnimationFrame(rafRenderRef.current)
     }
-    // Static render when not playing
     render()
   }, [isPlaying, render])
 
-  // ResizeObserver for responsive rendering
+  // ResizeObserver
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
@@ -260,18 +176,29 @@ export function WaveformPlayer({
     return () => observer.disconnect()
   }, [render])
 
-  // Click-to-seek handler
+  // Click-to-seek (mit Zoom-Korrektur)
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (!canPlay || duration <= 0) return
       const canvas = canvasRef.current
       if (!canvas) return
       const rect = canvas.getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const ratio = x / rect.width
-      seek(ratio * duration)
+      const ratio = (e.clientX - rect.left) / rect.width
+      const visDuration = effectiveViewEnd - effectiveViewStart
+      seek(effectiveViewStart + ratio * visDuration)
     },
-    [canPlay, duration, seek],
+    [canPlay, duration, seek, effectiveViewStart, effectiveViewEnd],
+  )
+
+  // Keyboard-Seek
+  const handleCanvasKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLCanvasElement>) => {
+      if (!canPlay) return
+      const step = e.shiftKey ? 10 : 5
+      if (e.key === 'ArrowRight') { e.preventDefault(); seek(Math.min(duration, currentTime + step)) }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); seek(Math.max(0, currentTime - step)) }
+    },
+    [canPlay, duration, currentTime, seek],
   )
 
   if (!pcmData) {
@@ -287,7 +214,6 @@ export function WaveformPlayer({
 
   return (
     <div className={className}>
-      {/* Waveform Canvas */}
       <div
         ref={containerRef}
         className="relative rounded-md overflow-hidden"
@@ -295,17 +221,36 @@ export function WaveformPlayer({
       >
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 cursor-pointer"
+          role="img"
+          aria-label={`Waveform – ${formatTime(duration)}`}
+          tabIndex={canPlay ? 0 : -1}
+          className="absolute inset-0 cursor-pointer focus-visible:ring-2 focus-visible:ring-ring"
           onClick={handleCanvasClick}
+          onKeyDown={handleCanvasKeyDown}
         />
         {isComputing && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/40">
             <p className="text-xs text-muted-foreground animate-pulse">Analyzing frequencies...</p>
           </div>
         )}
+        {zoomEnabled && effectiveZoom > 1 && (
+          <div className="absolute top-1 right-1 flex gap-0.5">
+            {zoomLevels.map((level) => (
+              <span
+                key={level}
+                className={`text-[10px] px-1 ${
+                  level === effectiveZoom
+                    ? 'bg-white/20 text-white font-medium'
+                    : 'text-white/30'
+                }`}
+              >
+                {level}x
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Transport Controls */}
       {audioFileHandle && (
         <div className="flex items-center gap-3 mt-2">
           <Button
@@ -320,11 +265,9 @@ export function WaveformPlayer({
           <span className="text-xs font-mono text-muted-foreground tabular-nums">
             {formatTime(currentTime)} / {formatTime(duration > 0 ? duration : 0)}
           </span>
-          <Volume2 className="h-3.5 w-3.5 text-muted-foreground ml-auto" />
         </div>
       )}
 
-      {/* Hidden audio element */}
       <audio ref={audioRef} preload="auto" className="hidden" />
     </div>
   )

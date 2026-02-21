@@ -12,15 +12,16 @@ import { ImportInstructions } from './ImportInstructions'
 export function AutoFixSection() {
   const tracks = useTrackStore((s) => s.tracks)
   const results = useAnalysisStore((s) => s.results)
+  const generatedBeatgrids = useAnalysisStore((s) => s.generatedBeatgrids)
   const computeAndSetFixes = useFixStore((s) => s.computeAndSetFixes)
   const fixes = useFixStore((s) => s.fixes)
   const keptDuplicates = useFixStore((s) => s.keptDuplicates)
 
   useEffect(() => {
     if (tracks.length > 0 && results) {
-      computeAndSetFixes(tracks, results)
+      computeAndSetFixes(tracks, results, generatedBeatgrids)
     }
-  }, [tracks, results, computeAndSetFixes])
+  }, [tracks, results, generatedBeatgrids, computeAndSetFixes])
 
   const hasFixes = fixes.length > 0 || keptDuplicates.size > 0
 

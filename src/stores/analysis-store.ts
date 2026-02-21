@@ -4,7 +4,8 @@ import type { AnalysisConfig, AnalysisResults, AnyCheckResult, CheckId } from '@
 import { checkRequiresAudio } from '@/types/analysis'
 import type { RawBeatResult, RawKeyResult, RawClipResult, RawFingerprintResult } from '@/types/audio'
 import { auditLibrary } from '@/features/metadata'
-import { checkBeatgridLibrary } from '@/features/beatgrid'
+import { checkBeatgridLibrary, generateBeatgrid } from '@/features/beatgrid'
+import type { GeneratedBeatgrid } from '@/features/beatgrid'
 import { verifyBpmLibrary } from '@/features/bpm'
 import { checkKeyLibrary } from '@/features/key'
 import { checkClippingLibrary } from '@/features/clipping'
@@ -20,9 +21,11 @@ interface AnalysisStore {
   rawKeyResults: Map<string, RawKeyResult>
   rawClipResults: Map<string, RawClipResult>
   rawFingerprintResults: Map<string, RawFingerprintResult>
+  generatedBeatgrids: Map<string, GeneratedBeatgrid>
 
   setChecks: (checks: CheckId[]) => void
   runAnalysis: (tracks: Track[]) => void
+  storeGeneratedBeatgrid: (trackId: string, grid: GeneratedBeatgrid) => void
   storeRawBeatResult: (trackId: string, result: RawBeatResult) => void
   storeRawKeyResult: (trackId: string, result: RawKeyResult) => void
   storeRawClipResult: (trackId: string, result: RawClipResult) => void
@@ -41,6 +44,7 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
   rawKeyResults: new Map(),
   rawClipResults: new Map(),
   rawFingerprintResults: new Map(),
+  generatedBeatgrids: new Map(),
 
   setChecks: (checks) => {
     const needsAudio = checks.some(checkRequiresAudio)
@@ -49,7 +53,15 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
 
   runAnalysis: (tracks) => {
     const { config, needsAudioDecoding } = get()
-    set({ isRunning: true, error: null, rawBeatResults: new Map(), rawKeyResults: new Map(), rawClipResults: new Map(), rawFingerprintResults: new Map() })
+    set({
+      isRunning: true,
+      error: null,
+      rawBeatResults: new Map(),
+      rawKeyResults: new Map(),
+      rawClipResults: new Map(),
+      rawFingerprintResults: new Map(),
+      generatedBeatgrids: new Map(),
+    })
 
     try {
       const hasMetadata = config.checks.includes('metadata')
@@ -81,6 +93,14 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
         error: err instanceof Error ? err.message : 'Analysis failed',
       })
     }
+  },
+
+  storeGeneratedBeatgrid: (trackId, grid) => {
+    set((state) => {
+      const newMap = new Map(state.generatedBeatgrids)
+      newMap.set(trackId, grid)
+      return { generatedBeatgrids: newMap }
+    })
   },
 
   storeRawBeatResult: (trackId, result) => {
@@ -123,6 +143,20 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
 
     if (config.checks.includes('beatgrid')) {
       existingResults.push(checkBeatgridLibrary(tracks, rawBeatResults))
+
+      // Beatgrids generieren fuer Tracks ohne existierende TempoMarker
+      const newGeneratedBeatgrids = new Map<string, GeneratedBeatgrid>()
+      for (const track of tracks) {
+        if (track.tempoMarkers.length === 0) {
+          const rawBeat = rawBeatResults.get(track.id)
+          if (!rawBeat) continue
+          const generated = generateBeatgrid(rawBeat, [])
+          if (generated.method !== 'skipped') {
+            newGeneratedBeatgrids.set(track.id, generated)
+          }
+        }
+      }
+      set({ generatedBeatgrids: newGeneratedBeatgrids })
     }
 
     if (config.checks.includes('bpm')) {
@@ -156,6 +190,14 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
   },
 
   clearResults: () => {
-    set({ results: null, error: null, rawBeatResults: new Map(), rawKeyResults: new Map(), rawClipResults: new Map(), rawFingerprintResults: new Map() })
+    set({
+      results: null,
+      error: null,
+      rawBeatResults: new Map(),
+      rawKeyResults: new Map(),
+      rawClipResults: new Map(),
+      rawFingerprintResults: new Map(),
+      generatedBeatgrids: new Map(),
+    })
   },
 }))

@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { SeverityBadge } from '@/components/report/SeverityBadge'
 import type { BeatgridCheckResult } from '@/types/analysis'
+import { formatConfidence, confidenceColor } from '@/lib/utils'
 
 interface BeatgridSummaryCardProps {
   result: BeatgridCheckResult
@@ -23,8 +24,8 @@ export function BeatgridSummaryCard({ result }: BeatgridSummaryCardProps) {
         {/* Confidence */}
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Avg Confidence</span>
-          <span className="text-sm font-mono font-medium">
-            {libraryStats.avgConfidence.toFixed(0)}%
+          <span className={`text-sm font-mono font-medium ${confidenceColor(libraryStats.avgConfidence)}`}>
+            {formatConfidence(libraryStats.avgConfidence)}
           </span>
         </div>
 

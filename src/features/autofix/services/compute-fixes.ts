@@ -6,6 +6,7 @@ import type {
   BeatgridCheckResult,
 } from '@/types/analysis'
 import type { FixEntry, FixOperation } from '@/types/fix'
+import type { GeneratedBeatgrid } from '@/features/beatgrid'
 
 function trackLabel(trackMap: Map<string, Track>, trackId: string): string {
   const t = trackMap.get(trackId)
@@ -118,9 +119,42 @@ function computeBeatgridFixes(
   return fixes
 }
 
+function computeBeatgridGenerationFixes(
+  trackMap: Map<string, Track>,
+  generatedBeatgrids: Map<string, GeneratedBeatgrid>,
+): FixEntry[] {
+  const fixes: FixEntry[] = []
+  for (const [trackId, grid] of generatedBeatgrids) {
+    if (grid.method === 'skipped') continue
+
+    const track = trackMap.get(trackId)
+    if (!track) continue
+
+    const op: FixOperation = {
+      kind: 'beatgrid',
+      trackId,
+      sourceId: track.sourceId,
+      newDownbeatSec: grid.phaseOffsetSec,
+      bpm: grid.medianBpm,
+      tempoMarkers: grid.tempoMarkers,
+    }
+    fixes.push({
+      operation: op,
+      status: 'pending',
+      preview: {
+        label: trackLabel(trackMap, trackId),
+        before: 'Kein Grid',
+        after: `${grid.medianBpm.toFixed(2)} BPM @ ${grid.phaseOffsetSec.toFixed(3)}s`,
+      },
+    })
+  }
+  return fixes
+}
+
 export function computeFixes(
   tracks: Track[],
   results: AnalysisResults,
+  generatedBeatgrids?: Map<string, GeneratedBeatgrid>,
 ): FixEntry[] {
   const trackMap = new Map(tracks.map((t) => [t.id, t]))
   const fixes: FixEntry[] = []
@@ -139,6 +173,10 @@ export function computeFixes(
     (r): r is BeatgridCheckResult => r.type === 'beatgrid',
   )
   if (beatgridResult) fixes.push(...computeBeatgridFixes(trackMap, beatgridResult))
+
+  if (generatedBeatgrids && generatedBeatgrids.size > 0) {
+    fixes.push(...computeBeatgridGenerationFixes(trackMap, generatedBeatgrids))
+  }
 
   return fixes
 }

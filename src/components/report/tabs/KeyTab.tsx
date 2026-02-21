@@ -1,5 +1,6 @@
 import { InfoItem } from './InfoItem'
 import type { TrackKeyResult } from '@/types/analysis'
+import { formatConfidence, confidenceColor } from '@/lib/utils'
 
 interface KeyTabProps {
   result: TrackKeyResult
@@ -16,7 +17,7 @@ export function KeyTab({ result }: KeyTabProps) {
       <InfoItem label="Detected Key" value={result.detectedKey ?? 'N/A'} />
       <InfoItem label="Camelot" value={result.detectedCamelot ?? 'N/A'} />
       <InfoItem label="Open Key" value={result.detectedOpenKey ?? 'N/A'} />
-      <InfoItem label="Confidence" value={`${result.confidence}%`} />
+      <InfoItem label="Confidence" value={formatConfidence(result.confidence)} className={confidenceColor(result.confidence)} />
       <div className="rounded-md border p-3">
         <p className="text-xs text-muted-foreground">Match</p>
         <span className={

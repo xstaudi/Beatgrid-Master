@@ -15,14 +15,15 @@ import { ImportInstructions } from '@/features/autofix/components/ImportInstruct
 
 export default function ExportPage() {
   const results = useAnalysisStore((s) => s.results)
+  const generatedBeatgrids = useAnalysisStore((s) => s.generatedBeatgrids)
   const tracks = useTrackStore((s) => s.tracks)
   const computeAndSetFixes = useFixStore((s) => s.computeAndSetFixes)
 
   useEffect(() => {
     if (tracks.length > 0 && results) {
-      computeAndSetFixes(tracks, results)
+      computeAndSetFixes(tracks, results, generatedBeatgrids)
     }
-  }, [tracks, results, computeAndSetFixes])
+  }, [tracks, results, generatedBeatgrids, computeAndSetFixes])
 
   if (!results || results.results.length === 0) {
     redirect('/report')

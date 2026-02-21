@@ -43,7 +43,8 @@ function applyOperation(
         if (op.detectedKey) rb.applyKeyFix(el, op.detectedKey)
         break
       case 'beatgrid':
-        if (op.newDownbeatSec != null) rb.applyBeatgridFix(el, op.newDownbeatSec)
+        if (op.newDownbeatSec != null)
+          rb.applyBeatgridFix(el, op.newDownbeatSec, op.tempoMarkers)
         break
       case 'duplicate-remove':
         rb.removeTrack(el, doc)
@@ -58,7 +59,8 @@ function applyOperation(
         if (op.detectedKey) tk.applyKeyFix(el, doc, op.detectedKey)
         break
       case 'beatgrid':
-        if (op.newDownbeatSec != null) tk.applyBeatgridFix(el, op.newDownbeatSec)
+        // Traktor speichert kein vollständiges Beat-Array – nur Downbeat-Offset via CUE_V2 TYPE=4
+        if (op.newDownbeatSec != null) tk.applyBeatgridFix(el, doc, op.newDownbeatSec)
         break
       case 'duplicate-remove':
         tk.removeEntry(el, doc)

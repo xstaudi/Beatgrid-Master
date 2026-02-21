@@ -5,6 +5,7 @@ import { TableRow, TableCell } from '@/components/ui/table'
 import { SeverityBadge } from './SeverityBadge'
 import type { UnifiedTrackRow } from '@/features/report'
 import type { CheckId } from '@/types/analysis'
+import { formatConfidence, confidenceColor } from '@/lib/utils'
 
 interface TrackTableRowProps {
   row: UnifiedTrackRow
@@ -67,7 +68,11 @@ export const TrackTableRow = memo(function TrackTableRow({
             {row.beatgrid?.skipReason ? '\u2014' : `${row.beatgrid?.avgDriftMs.toFixed(1)}ms`}
           </TableCell>
           <TableCell className="font-mono hidden lg:table-cell">
-            {row.beatgrid?.skipReason ? '\u2014' : `${row.beatgrid?.confidence}%`}
+            {row.beatgrid?.skipReason ? '\u2014' : (
+              <span className={confidenceColor(row.beatgrid?.confidence ?? 0)}>
+                {formatConfidence(row.beatgrid?.confidence ?? 0)}
+              </span>
+            )}
           </TableCell>
         </>
       )}

@@ -23,14 +23,25 @@ export function applyKeyFix(el: Element, doc: Document, key: string): void {
   musicalKey.setAttribute('VALUE', String(numericValue))
 }
 
-export function applyBeatgridFix(el: Element, downbeatSec: number): void {
+export function applyBeatgridFix(el: Element, doc: Document, downbeatSec: number): void {
+  const startMs = (downbeatSec * 1000).toFixed(1)
   const cues = el.querySelectorAll('CUE_V2')
   for (const cue of cues) {
     if (cue.getAttribute('TYPE') === '4') {
-      cue.setAttribute('START', (downbeatSec * 1000).toFixed(1))
+      cue.setAttribute('START', startMs)
       return
     }
   }
+  // Kein Grid-Cue vorhanden — neu anlegen (Fresh Analysis)
+  const cue = doc.createElement('CUE_V2')
+  cue.setAttribute('NAME', 'AutoGrid')
+  cue.setAttribute('DISPL_ORDER', '0')
+  cue.setAttribute('TYPE', '4')
+  cue.setAttribute('START', startMs)
+  cue.setAttribute('LEN', '0')
+  cue.setAttribute('REPEATS', '-1')
+  cue.setAttribute('HOTCUE', '-1')
+  el.appendChild(cue)
 }
 
 export function removeEntry(el: Element, doc: Document): void {

@@ -10,6 +10,7 @@ import type { CheckId } from '@/types/analysis'
 import { codecFromFileType } from '@/types/audio'
 import { DecodePipeline } from '@/workers/pipeline'
 import { useAnalysisPipelines } from '@/features/analyze/hooks/useAnalysisPipelines'
+import { TrackClassificationSummary } from '@/features/analyze/components/TrackClassificationSummary'
 import { openAudioDirectory, scanDirectoryForAudio, matchTracksToFiles, readAudioFile } from '@/lib/audio/file-access'
 import { SoftwareSelector } from '@/components/analyze/SoftwareSelector'
 import { FileDropZone } from '@/components/analyze/FileDropZone'
@@ -23,14 +24,15 @@ import { ProcessingIndicator } from '@/components/analyze/ProcessingIndicator'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 
-type Step = 'software' | 'import' | 'config' | 'processing'
-const STEPS: Step[] = ['software', 'import', 'config', 'processing']
+type Step = 'software' | 'import' | 'classification' | 'config' | 'processing'
+const STEPS: Step[] = ['software', 'import', 'classification', 'config', 'processing']
 
 const STEP_TITLES: Record<Step, string> = {
-  software: 'Choose Your DJ Software',
-  import: 'Import Your Library',
-  config: 'Configure Analysis',
-  processing: 'Analyzing...',
+  software: 'DJ-Software wählen',
+  import: 'Bibliothek importieren',
+  classification: 'Tracks klassifizieren',
+  config: 'Analyse konfigurieren',
+  processing: 'Analysiere...',
 }
 
 export default function AnalyzePage() {
@@ -77,7 +79,7 @@ export default function AnalyzePage() {
       setImportError(null)
       try {
         importLibrary(content)
-        setStep('config')
+        setStep('classification')
       } catch (err) {
         setImportError(err instanceof Error ? err.message : 'Failed to parse file')
       }
@@ -91,7 +93,7 @@ export default function AnalyzePage() {
       try {
         await importUsbLibrary(handle)
         usbHandleRef.current = handle
-        setStep('config')
+        setStep('classification')
       } catch (err) {
         setUsbError(err instanceof Error ? err.message : 'Failed to read USB drive')
       }
@@ -104,7 +106,7 @@ export default function AnalyzePage() {
       setPcError(null)
       try {
         await importPcLibrary(handle)
-        setStep('config')
+        setStep('classification')
       } catch (err) {
         setPcError(err instanceof Error ? err.message : 'Fehler beim Lesen der rekordbox-Bibliothek')
       }
@@ -118,7 +120,7 @@ export default function AnalyzePage() {
       try {
         await importAudioFolder(handle)
         audioFolderHandleRef.current = handle
-        setStep('config')
+        setStep('classification')
       } catch (err) {
         setAudioFolderError(err instanceof Error ? err.message : 'Fehler beim Lesen des Audio-Ordners')
       }
@@ -263,7 +265,9 @@ export default function AnalyzePage() {
 
   const canGoBack = stepIndex > 0 && step !== 'processing'
   const canGoForward =
-    (step === 'software' && software != null) || (step === 'import' && tracks.length > 0)
+    (step === 'software' && software != null) ||
+    (step === 'import' && tracks.length > 0) ||
+    step === 'classification'
 
   return (
     <main className="min-h-[calc(100vh-3.5rem)] p-6 md:p-10">
@@ -336,11 +340,15 @@ export default function AnalyzePage() {
           </div>
         )}
 
+        {step === 'classification' && (
+          <TrackClassificationSummary tracks={getActiveTracks()} />
+        )}
+
         {step === 'config' && (
           <div className="space-y-6">
             <p className="text-center text-muted-foreground">
-              {getActiveTracks().length.toLocaleString()} tracks
-              {activePlaylistId ? ' in playlist' : ' imported'}
+              {getActiveTracks().length.toLocaleString()} Tracks
+              {activePlaylistId ? ' in Playlist' : ' importiert'}
             </p>
             {playlists.length > 0 && (
               <PlaylistSelector
@@ -373,7 +381,7 @@ export default function AnalyzePage() {
               className="w-full"
               size="lg"
             >
-              Run Analysis
+              Analyse starten
             </Button>
           </div>
         )}
@@ -385,7 +393,7 @@ export default function AnalyzePage() {
               <div className="space-y-4 text-center">
                 <p role="alert" className="text-sm text-destructive">{analysisError}</p>
                 <Button variant="outline" onClick={() => setStep('config')}>
-                  Back to Configuration
+                  Zurück zur Konfiguration
                 </Button>
               </div>
             )}
@@ -401,14 +409,14 @@ export default function AnalyzePage() {
               disabled={!canGoBack}
             >
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back
+              Zurück
             </Button>
             {step !== 'config' && (
               <Button
                 onClick={() => setStep(STEPS[stepIndex + 1])}
                 disabled={!canGoForward}
               >
-                Next
+                Weiter
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             )}

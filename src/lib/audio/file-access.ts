@@ -29,6 +29,11 @@ export interface AudioFileHandle {
 
 const AUDIO_EXTENSIONS = ['.mp3', '.flac', '.ogg', '.aac', '.m4a', '.wav', '.aiff', '.aif']
 
+/** Filenames starting with these prefixes are auxiliary/system files, not real tracks */
+function isAuxiliaryFile(name: string): boolean {
+  return name.startsWith('_') || name.startsWith('.')
+}
+
 export function getAudioExtensions(): string[] {
   return [...AUDIO_EXTENSIONS]
 }
@@ -44,6 +49,7 @@ export async function openAudioDirectory(): Promise<AudioFileHandle[]> {
 
   return files
     .filter((file) => {
+      if (isAuxiliaryFile(file.name)) return false
       const ext = '.' + file.name.split('.').pop()?.toLowerCase()
       return AUDIO_EXTENSIONS.includes(ext)
     })
@@ -67,6 +73,7 @@ export async function scanDirectoryForAudio(
     for await (const [name, entry] of handle.entries()) {
       try {
         if (entry.kind === 'file') {
+          if (isAuxiliaryFile(name)) continue
           const ext = '.' + name.split('.').pop()?.toLowerCase()
           if (AUDIO_EXTENSIONS.includes(ext)) {
             // Use the entry directly as FileSystemFileHandle (from entries() iterator)
