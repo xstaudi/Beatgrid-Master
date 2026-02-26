@@ -9,3 +9,9 @@ export {
   TEMPERLEY_MAJOR, TEMPERLEY_MINOR,
   EDMM_MAJOR, EDMM_MINOR,
 } from './key-profiles'
+export { hzToMel, melToHz, createMelFilterbank } from './mel'
+export { computeOnsetStrength } from './onset-strength'
+export type { OnsetStrengthResult } from './onset-strength'
+export { computeMultibandKickOnsets } from './multiband-kick'
+export { fuseBeats } from './beat-fusion'
+export type { BeatFusionInput, BeatFusionResult } from './beat-fusion'

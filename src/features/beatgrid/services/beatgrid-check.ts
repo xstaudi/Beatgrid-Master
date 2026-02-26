@@ -186,7 +186,10 @@ export function checkBeatgrid(track: Track, rawBeat: RawBeatResult | null): Trac
 
   const offBeatRaw = detectOffBeat(driftPoints)
   const offBeatMs = Math.abs(offBeatRaw) >= 3 ? offBeatRaw : undefined
-  const outOfPhaseRaw = detectOutOfPhase(expectedBeats, rawBeat.kickOnsets ?? [])
+  // Bar Alignment nur anzeigen wenn Grid-Qualitaet ausreicht (< 30ms Drift)
+  const outOfPhaseRaw = avgDriftMs < 30
+    ? detectOutOfPhase(expectedBeats, rawBeat.kickOnsets ?? [])
+    : null
   const outOfPhaseBeats = outOfPhaseRaw !== null ? outOfPhaseRaw : undefined
 
   return {

@@ -45,6 +45,11 @@ const PHASE_TEXTS: Record<string, string[]> = {
     'Prüfe Taktgenauigkeit...',
     'Erkenne Beats...',
   ],
+  separating: [
+    'Isoliere Drum-Spur (KI)...',
+    'Stem-Separation laeuft...',
+    'Trenne Instrumente...',
+  ],
   processing: [
     'Verarbeite Ergebnisse...',
     'Berechne Resultate...',
@@ -58,6 +63,7 @@ const PHASE_TEXTS: Record<string, string[]> = {
 function getPhase(trackStates: Map<string, TrackProcessingState>, progress: number): string {
   if (progress > 85) return 'completing'
   for (const state of trackStates.values()) {
+    if (state.status === 'analyzing' && state.phase === 'separating') return 'separating'
     if (state.status === 'analyzing') return 'analyzing'
     if (state.status === 'decoding') return 'decoding'
     if (state.status === 'processing') return 'processing'

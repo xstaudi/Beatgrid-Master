@@ -220,6 +220,7 @@ export type AnyCheckResult =
 
 export interface AnalysisConfig {
   checks: CheckId[]
+  enhancedBeatDetection?: boolean
 }
 
 export interface AnalysisResults {

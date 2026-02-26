@@ -6,6 +6,7 @@ import { checkRequiresAudio } from '@/types/analysis'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { EnhancedAnalysisToggle } from './EnhancedAnalysisToggle'
 
 interface CheckOption {
   id: CheckId
@@ -26,9 +27,12 @@ interface CheckSelectorProps {
   selected: CheckId[]
   onChange: (checks: CheckId[]) => void
   onNeedsAudioChange?: (needsAudio: boolean) => void
+  enhancedBeat?: boolean
+  onEnhancedBeatChange?: (enabled: boolean) => void
 }
 
-export function CheckSelector({ selected, onChange, onNeedsAudioChange }: CheckSelectorProps) {
+export function CheckSelector({ selected, onChange, onNeedsAudioChange, enhancedBeat, onEnhancedBeatChange }: CheckSelectorProps) {
+  const showEnhancedToggle = selected.some((c) => c === 'beatgrid' || c === 'bpm')
   useEffect(() => {
     onNeedsAudioChange?.(selected.some((c) => checkRequiresAudio(c)))
   }, [selected, onNeedsAudioChange])
@@ -71,6 +75,12 @@ export function CheckSelector({ selected, onChange, onNeedsAudioChange }: CheckS
             </div>
           </label>
         ))}
+        {showEnhancedToggle && onEnhancedBeatChange && (
+          <EnhancedAnalysisToggle
+            enabled={enhancedBeat ?? false}
+            onToggle={onEnhancedBeatChange}
+          />
+        )}
       </CardContent>
     </Card>
   )

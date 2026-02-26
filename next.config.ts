@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
       module: { browser: './src/lib/empty-module.ts' },
       'fs/promises': { browser: './src/lib/empty-module.ts' },
       '@wasmer/sdk': './src/lib/empty-module.ts',
+      'onnxruntime-node': './src/lib/empty-module.ts',
     },
   },
   serverExternalPackages: ['taglib-wasm'],
@@ -30,6 +31,7 @@ const nextConfig: NextConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       '@wasmer/sdk': false,
+      'onnxruntime-node': false,
     }
     return config
   },

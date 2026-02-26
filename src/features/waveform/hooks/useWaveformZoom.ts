@@ -5,9 +5,9 @@ interface PhaseMarkerConfig {
   onDrag: (newSec: number) => void
 }
 
-const ZOOM_LEVELS = [1, 2, 4, 8, 16] as const
+const ZOOM_LEVELS = [1, 2, 4, 8, 16, 32, 64] as const
 const MIN_ZOOM = 1
-export const MAX_ZOOM = 16
+export const MAX_ZOOM = 64
 const DRAG_THRESHOLD_PX = 4
 
 export function useWaveformZoom(

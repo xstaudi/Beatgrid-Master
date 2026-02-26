@@ -12,7 +12,7 @@
     "test:coverage": "vitest run --coverage",
     "type-check": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
-    "postinstall": "cp node_modules/audio-file-decoder/decode-audio.wasm node_modules/audio-file-decoder/dist/"
+    "postinstall": "cp node_modules/audio-file-decoder/decode-audio.wasm node_modules/audio-file-decoder/dist/ && mkdir -p public/onnx && cp node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm public/onnx/ && cp node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs public/onnx/"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.18",
@@ -31,6 +31,7 @@
     "mpg123-decoder": "^1.0.3",
     "next": "16.1.6",
     "ogg-opus-decoder": "^1.7.3",
+    "onnxruntime-web": "^1.24.2",
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",

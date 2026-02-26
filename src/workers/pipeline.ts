@@ -175,6 +175,7 @@ interface BeatQueueItem {
   trackId: string
   samples: Float32Array
   sampleRate: number
+  stemSource?: 'mix' | 'drums'
 }
 
 type BeatProgressCallback = (trackId: string, percent: number) => void
@@ -241,8 +242,8 @@ export class BeatPipeline {
     }
   }
 
-  enqueue(trackId: string, samples: Float32Array, sampleRate: number): void {
-    this.queue.push({ trackId, samples, sampleRate })
+  enqueue(trackId: string, samples: Float32Array, sampleRate: number, stemSource?: 'mix' | 'drums'): void {
+    this.queue.push({ trackId, samples, sampleRate, stemSource })
     this.dispatchNext()
   }
 
@@ -274,6 +275,7 @@ export class BeatPipeline {
         trackId: item.trackId,
         samples: item.samples,
         sampleRate: item.sampleRate,
+        stemSource: item.stemSource,
       },
       [item.samples.buffer],
     )

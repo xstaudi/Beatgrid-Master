@@ -44,6 +44,7 @@ export default function AnalyzePage() {
   const {
     config,
     setChecks,
+    setEnhancedBeat,
     isRunning,
     results,
     error: analysisError,
@@ -283,6 +284,8 @@ export default function AnalyzePage() {
               selected={config.checks}
               onChange={(checks: CheckId[]) => setChecks(checks)}
               onNeedsAudioChange={setNeedsAudio}
+              enhancedBeat={config.enhancedBeatDetection}
+              onEnhancedBeatChange={setEnhancedBeat}
             />
             {needsAudio && !audioSkipped && software !== 'rekordbox-usb' && software !== 'audio-folder' && (
               <AudioDirectoryPicker

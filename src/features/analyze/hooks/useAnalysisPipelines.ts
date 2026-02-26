@@ -5,10 +5,13 @@ import { useProcessingStore } from '@/stores/processing-store'
 import type { RawBeatResult, RawKeyResult, RawClipResult, RawFingerprintResult } from '@/types/audio'
 import { BeatPipeline } from '@/workers/pipeline'
 import { KeyPipeline, ClipPipeline, FingerprintPipeline } from '@/workers/analysis-pipelines'
+import { useDemucsEnhancement } from './useDemucsEnhancement'
 
 export function useAnalysisPipelines() {
   const { updateTrackState } = useProcessingStore()
   const { storeRawBeatResult, storeRawKeyResult, storeRawClipResult, storeFingerprintResult } = useAnalysisStore()
+
+  const { startDemucsFlow, terminateDemucs } = useDemucsEnhancement()
 
   const beatPipelineRef = useRef<BeatPipeline | null>(null)
   const keyPipelineRef = useRef<KeyPipeline | null>(null)
@@ -42,6 +45,7 @@ export function useAnalysisPipelines() {
     const needsKey = config.checks.includes('key')
     const needsClip = config.checks.includes('clipping')
     const needsFingerprint = config.checks.includes('duplicates')
+    const useDemucs = needsBeat && config.enhancedBeatDetection === true
 
     activePipelinesRef.current = [needsBeat, needsKey, needsClip, needsFingerprint].filter(Boolean).length
     completedPipelinesRef.current = 0
@@ -52,8 +56,8 @@ export function useAnalysisPipelines() {
       return
     }
 
-    // Beat Pipeline
-    if (needsBeat) {
+    // Beat Pipeline Setup (wird bei Demucs-Mode spaeter gestartet)
+    const createBeatPipeline = () => {
       expectedBeatCountRef.current = audioTrackIds.length
       beatResultCountRef.current = 0
 
@@ -83,18 +87,28 @@ export function useAnalysisPipelines() {
         onStateChange: (trackId, update) => {
           updateTrackState(trackId, {
             status: update.status as 'analyzing',
-            phase: update.phase as 'loading' | 'analyzing' | 'done',
+            phase: update.phase as 'loading' | 'analyzing' | 'fusing' | 'done',
           })
         },
       })
 
       beatPipelineRef.current = beatPipeline
-      await beatPipeline.init()
+      return beatPipeline
+    }
 
-      for (const trackId of audioTrackIds) {
-        const pcm = cache.get(trackId)
-        if (!pcm) continue
-        beatPipeline.enqueue(trackId, pcm.samples.slice(), pcm.sampleRate)
+    // Beat Pipeline: mit oder ohne Demucs
+    if (needsBeat) {
+      if (useDemucs) {
+        await startDemucsFlow(audioTrackIds, cache, createBeatPipeline, updateTrackState)
+      } else {
+        const beatPipeline = createBeatPipeline()
+        await beatPipeline.init()
+
+        for (const trackId of audioTrackIds) {
+          const pcm = cache.get(trackId)
+          if (!pcm) continue
+          beatPipeline.enqueue(trackId, pcm.samples.slice(), pcm.sampleRate)
+        }
       }
     }
 
@@ -212,7 +226,8 @@ export function useAnalysisPipelines() {
     keyPipelineRef.current?.terminate()
     clipPipelineRef.current?.terminate()
     fingerprintPipelineRef.current?.terminate()
-  }, [])
+    terminateDemucs()
+  }, [terminateDemucs])
 
   return { startAnalysisPipelines, terminateAll }
 }

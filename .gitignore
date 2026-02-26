@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ONNX Runtime WASM binaries (kopiert via postinstall)
+/public/onnx/

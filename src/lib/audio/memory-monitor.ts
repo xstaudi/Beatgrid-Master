@@ -43,3 +43,27 @@ export function formatMemory(mb: number): string {
   if (mb < 1) return `${Math.round(mb * 1024)} KB`
   return `${mb.toFixed(1)} MB`
 }
+
+/**
+ * Gibt geschaetzten Device-RAM in GB zurueck.
+ * navigator.deviceMemory (Chromium) → Heap-Heuristik → Default 8.
+ */
+export function getDeviceMemoryGb(): number {
+  const nav = navigator as Navigator & { deviceMemory?: number }
+  if (nav.deviceMemory) return nav.deviceMemory
+
+  const perf = performance as Performance & { memory?: { jsHeapSizeLimit: number } }
+  if (perf.memory?.jsHeapSizeLimit) {
+    return Math.round((perf.memory.jsHeapSizeLimit / (1024 * 1024 * 1024)) * 4)
+  }
+
+  return 8
+}
+
+/**
+ * Demucs-spezifisches Throttling: Haertere Grenze als Standard.
+ * Demucs braucht ~1-1.5 GB, daher frueheres Throttling.
+ */
+export function shouldThrottleDemucs(currentUsageMb: number): boolean {
+  return shouldThrottleWorkers(1500, currentUsageMb)
+}
