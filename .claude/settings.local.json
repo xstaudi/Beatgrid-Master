@@ -12,6 +12,7 @@
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "memory",
-    "context7"
+    "context7",
+    "freecad"
   ]
 }
