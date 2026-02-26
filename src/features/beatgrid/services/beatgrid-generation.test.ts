@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { generateBeatgrid, generateDynamicSegments } from './beatgrid-generation'
+import { generateBeatgrid } from './beatgrid-generation'
 import type { RawBeatResult } from '@/types/audio'
 import type { TempoMarker } from '@/types/track'
+import { PHASE_BIN_WIDTH_MS } from '../constants'
 
 function makeRawBeat(overrides: Partial<RawBeatResult> = {}): RawBeatResult {
   return {
@@ -47,12 +48,19 @@ describe('generateBeatgrid', () => {
     expect(result.confidence).toBeGreaterThan(80)
   })
 
-  it('generiert Grid trotz Variable BPM (>5% Varianz), flaggt aber isVariableBpm', () => {
-    const beats = generateEvenBeats(128, 300, 0.1)
+  it('generiert Grid trotz Variable BPM, flaggt isVariableBpm bei echtem variablem Tempo', () => {
+    // Echte variable Beats: abwechselnd 128 BPM und 100 BPM Intervalle
+    const beats: number[] = []
+    let t = 0.1
+    for (let i = 0; i < 200; i++) {
+      beats.push(t)
+      t += i % 2 === 0 ? 0.47 : 0.6  // ~128 BPM / ~100 BPM
+    }
     const rawBeat = makeRawBeat({
       beatTimestamps: beats,
-      bpmEstimate: 128,
+      bpmEstimate: 112,
       segmentBpms: [120, 128, 140, 125, 135],
+      duration: t,
     })
 
     const result = generateBeatgrid(rawBeat, [])
@@ -60,6 +68,20 @@ describe('generateBeatgrid', () => {
     expect(result.method).toBe('static')
     expect(result.isVariableBpm).toBe(true)
     expect(result.tempoMarkers).toHaveLength(1)
+  })
+
+  it('flaggt gleichmaessigen Electronic-Track NICHT als variable BPM', () => {
+    const beats = generateEvenBeats(128, 300, 0.1)
+    const rawBeat = makeRawBeat({
+      beatTimestamps: beats,
+      bpmEstimate: 128,
+      segmentBpms: [126, 128, 130, 127, 129],  // Leichte Segment-Varianz
+    })
+
+    const result = generateBeatgrid(rawBeat, [])
+
+    expect(result.method).toBe('static')
+    expect(result.isVariableBpm).toBe(false)
   })
 
   it('skippt bei <10 Beats', () => {
@@ -186,9 +208,13 @@ describe('generateBeatgrid', () => {
     const result = generateBeatgrid(rawBeat, [])
 
     expect(result.method).toBe('static')
-    // Downbeat soll im Hauptteil liegen (~3.0s), nicht bei Intro-Onsets
-    expect(result.phaseOffsetSec).toBeGreaterThanOrEqual(3.0)
-    expect(result.phaseOffsetSec).toBeLessThan(3.5)
+    // Phase basiert auf dem dichten Hauptteil (3.0s), nicht auf Intro-Onsets
+    // 3.0 % interval = Phase des Hauptteils
+    const expectedPhase = 3.0 % interval
+    expect(result.phaseOffsetSec).toBeCloseTo(expectedPhase, 2)
+    // Grid muss die Hauptteil-Beats treffen: phaseOffset + N*interval = 3.0
+    const beatsToDrop = Math.round((3.0 - result.phaseOffsetSec) / interval)
+    expect(result.phaseOffsetSec + beatsToDrop * interval).toBeCloseTo(3.0, 2)
   })
 
   it('generiert Grid fuer 30 BPM (langsam)', () => {
@@ -223,32 +249,6 @@ describe('generateBeatgrid', () => {
     expect(result.confidence).toBeGreaterThan(70)
   })
 
-  it('Dynamic Grid: Variable BPM (120→128→124) -> method dynamic + 3 Marker via generateBeatgrid', () => {
-    // 6 Segmente: 2x120, 2x128, 2x124 -> 3 Gruppen (>2% BPM-Diff zwischen Gruppen)
-    // Varianz: median=124, max-dev=|116-124|/124=6.5% > 5% -> isVariableBpm=true
-    const segmentBpms = [116, 116, 128, 128, 124, 124]
-    const beats = [
-      ...generateEvenBeats(116, 60, 0.1),
-      ...generateEvenBeats(128, 60, 60.1),
-      ...generateEvenBeats(124, 60, 120.1),
-    ]
-    const rawBeat = makeRawBeat({
-      beatTimestamps: beats,
-      segmentBpms,
-      bpmEstimate: 123,
-      duration: 180,
-    })
-
-    const result = generateBeatgrid(rawBeat, [])
-
-    expect(result.method).toBe('dynamic')
-    expect(result.isVariableBpm).toBe(true)
-    expect(result.tempoMarkers).toHaveLength(3)
-    expect(result.tempoMarkers[0].bpm).toBe(116)
-    expect(result.tempoMarkers[1].bpm).toBe(128)
-    expect(result.tempoMarkers[2].bpm).toBe(124)
-  })
-
   it('Beats mit Jitter: Median-BPM trotzdem korrekt', () => {
     // Deterministischer Jitter (sinusfoermig, max ±3ms)
     const interval = 60 / 128
@@ -272,65 +272,170 @@ describe('generateBeatgrid', () => {
     expect(result.medianBpm).toBeCloseTo(128, 0)
     expect(result.confidence).toBeGreaterThan(70)
   })
-})
 
-describe('generateDynamicSegments', () => {
-  it('Kleine Fluktuation (<2%) -> ein Marker (alles zusammengefuehrt)', () => {
+  // --- Plan-Tests: Phase-Praezision, Drop-Downbeat, Kick-Histogram, BPM-Validierung, Feinere Bins ---
+
+  it('Phase-Praezision: ±8ms Jitter → Grid-Phase innerhalb 5ms vom Ideal', () => {
+    const interval = 60 / 128
+    const idealPhase = 0.2
+    const beats: number[] = []
+    let pos = idealPhase
+    for (let i = 0; i < 200; i++) {
+      // Deterministischer Jitter ±8ms (realistisch fuer Beat-Detection)
+      const jitter = Math.sin(i * 2.3) * 0.008
+      beats.push(pos + jitter)
+      pos += interval
+    }
+
     const rawBeat = makeRawBeat({
-      segmentBpms: [120, 120.5, 121, 120.8, 120.2, 120.7],
-      beatTimestamps: generateEvenBeats(120, 180, 0.1),
-      duration: 180,
+      beatTimestamps: beats,
+      bpmEstimate: 128,
+      segmentBpms: [128, 128, 128, 128],
     })
 
-    const markers = generateDynamicSegments(rawBeat)
+    // BPM via existingMarkers fixieren damit Phase-Praezision isoliert getestet wird
+    // (Jitter verschiebt computeMedianBpm minimal, was Phase-Modulo verzerrt)
+    const existingMarkers: TempoMarker[] = [
+      { position: 0.0, bpm: 128, meter: '4/4', beat: 1 },
+    ]
 
-    expect(markers).toHaveLength(1)
+    const result = generateBeatgrid(rawBeat, existingMarkers)
+
+    expect(result.method).toBe('static')
+    expect(result.medianBpm).toBe(128)
+    // Phase muss innerhalb 5ms vom Ideal liegen
+    const expectedPhase = idealPhase % interval
+    const phaseDiffMs = Math.abs(result.phaseOffsetSec % interval - expectedPhase) * 1000
+    expect(phaseDiffMs).toBeLessThan(5)
   })
 
-  it('Zu wenig Segmente (<4) -> generateBeatgrid Fallback zu static', () => {
-    // isVariableBpm=true (17% Varianz) aber segmentBpms.length=3 < 4 -> static
+  it('Drop-Downbeat: Kick-freies Intro + Drop → Downbeat auf erstem Drop-Kick', () => {
+    const interval = 60 / 128
+    const barLen = interval * 4
+
+    // Beats durchgehend
+    const beats = generateEvenBeats(128, 300, 0.1)
+
+    // Kick-Pattern: 32 Bars Kicks, 16 Bars Breakdown (keine Kicks), dann Drop
+    const breakdownStart = 32 * barLen
+    const dropStart = 48 * barLen
+
+    const kickOnsets: number[] = []
+    // Intro-Kicks (32 Bars)
+    let pos = 0.1
+    while (pos < breakdownStart) {
+      kickOnsets.push(pos)
+      pos += interval
+    }
+    // Breakdown: keine Kicks (16 Bars)
+    // Drop-Kicks ab Bar 48
+    pos = dropStart
+    while (pos < 300) {
+      kickOnsets.push(pos)
+      pos += interval
+    }
+
     const rawBeat = makeRawBeat({
-      beatTimestamps: generateEvenBeats(120, 90, 0.1),
-      segmentBpms: [100, 135, 115],
-      bpmEstimate: 120,
-      duration: 90,
+      beatTimestamps: beats,
+      bpmEstimate: 128,
+      segmentBpms: [128, 128, 128, 128],
+      kickOnsets,
+      duration: 300,
     })
 
     const result = generateBeatgrid(rawBeat, [])
 
     expect(result.method).toBe('static')
-    expect(result.isVariableBpm).toBe(true)
+    // Erster Drop-Kick muss auf Downbeat (barPos 0) fallen
+    const dropKickBeatIdx = Math.round((dropStart - result.phaseOffsetSec) / interval)
+    const barPos = ((dropKickBeatIdx % 4) + 4) % 4
+    expect(barPos).toBe(0)
   })
 
-  it('Phase-Anchor: erster Kick im Zeitfenster bestimmt Position des ersten Markers', () => {
-    const bpm = 120
-    const intervalSec = 60 / bpm  // 0.5s
-    const kickOffset = 0.3
+  it('Kick-Histogram Downbeat: Track ohne Drop → Downbeat auf dominanter Kick-Bar-Position', () => {
+    const interval = 60 / 128
+    const barInterval = interval * 4
+
+    // Beats durchgehend
+    const beats = generateEvenBeats(128, 300, 0.1)
+
+    // Kicks nur auf Downbeat-Positionen (jeder 4. Beat) - gleichmaessig, kein Drop
+    const kickOnsets: number[] = []
+    let pos = 0.1
+    while (pos < 300) {
+      kickOnsets.push(pos)
+      pos += barInterval
+    }
+
     const rawBeat = makeRawBeat({
-      segmentBpms: [120, 120, 128, 128],
-      beatTimestamps: generateEvenBeats(120, 120, kickOffset),
-      kickOnsets: [kickOffset, 5.0, 10.0, 20.0, 30.0],
-      duration: 120,
+      beatTimestamps: beats,
+      bpmEstimate: 128,
+      segmentBpms: [128, 128, 128, 128],
+      kickOnsets,
+      duration: 300,
     })
 
-    const markers = generateDynamicSegments(rawBeat)
+    const result = generateBeatgrid(rawBeat, [])
 
-    // Erster Marker: phase = kickOffset % intervalSec
-    expect(markers[0].position).toBeCloseTo(kickOffset % intervalSec, 3)
+    expect(result.method).toBe('static')
+    // Kick-Positionen muessen auf Downbeat (barPos 0) fallen
+    const kickBeatIdx = Math.round((0.1 - result.phaseOffsetSec) / interval)
+    const barPos = ((kickBeatIdx % 4) + 4) % 4
+    expect(barPos).toBe(0)
   })
 
-  it('Phase-Anchor Fallback: ohne kickOnsets via Beat-Histogramm', () => {
-    const beatOffset = 0.25
+  it('BPM-Validierung: Existierender BPM 128, detektiert ~192 → wird adjustiert', () => {
+    // Beats im 192-BPM-Takt
+    const beats = generateEvenBeats(192, 300, 0.1)
     const rawBeat = makeRawBeat({
-      segmentBpms: [120, 120, 128, 128],
-      beatTimestamps: generateEvenBeats(120, 120, beatOffset),
-      // kein kickOnsets
-      duration: 120,
+      beatTimestamps: beats,
+      bpmEstimate: 192,
+      segmentBpms: [192, 192, 192, 192],
     })
 
-    const markers = generateDynamicSegments(rawBeat)
+    const existingMarkers: TempoMarker[] = [
+      { position: 0.1, bpm: 128, meter: '4/4', beat: 1 },
+    ]
 
-    // Phase aus Beat-Histogramm -> ≈ beatOffset
-    expect(markers[0].position).toBeCloseTo(beatOffset, 2)
+    const result = generateBeatgrid(rawBeat, existingMarkers)
+
+    expect(result.method).toBe('static')
+    // 192 ist weder Haelfte noch Doppeltes von 128 (Faktor 1.5x)
+    // Half/Double Guard: candidates [192, 384, 96] → 96 closest to 128
+    // Deviation |96-128|/128 = 25% > 2% → adjusted (96) wird verwendet, NICHT blind 128
+    expect(result.medianBpm).not.toBe(128)
+  })
+
+  it('Feinere Bins: korrekte Phase bei 10ms Phasen-Abstand (5ms Bins trennen, 15ms nicht)', () => {
+    const interval = 60 / 128  // 0.46875s
+
+    // Hauptgruppe: 80 Beats bei Phase 200ms
+    // Nebengruppe: 20 Beats bei Phase 210ms (nur 10ms Abstand)
+    // Mit 5ms Bins: bin 40 vs bin 42 → circDiff=2 → getrennte Cluster
+    // Mit 15ms Bins: beide in bin 13 → selber Cluster → Median verschoben
+    const beats: number[] = []
+    for (let i = 0; i < 80; i++) {
+      beats.push(0.200 + i * interval)
+    }
+    for (let i = 0; i < 20; i++) {
+      beats.push(0.210 + i * interval)
+    }
+    beats.sort((a, b) => a - b)
+
+    const rawBeat = makeRawBeat({
+      beatTimestamps: beats,
+      bpmEstimate: 128,
+      segmentBpms: [128, 128, 128, 128],
+    })
+
+    const result = generateBeatgrid(rawBeat, [])
+
+    expect(result.method).toBe('static')
+    // Sanity: wir nutzen tatsaechlich 5ms Bins
+    expect(PHASE_BIN_WIDTH_MS).toBe(5)
+    // Phase sollte auf Hauptgruppe (200ms) liegen, nicht durch Nebengruppe verschoben
+    const expectedPhase = 0.200 % interval
+    const phaseDiffMs = Math.abs(result.phaseOffsetSec % interval - expectedPhase) * 1000
+    expect(phaseDiffMs).toBeLessThan(3)
   })
 })

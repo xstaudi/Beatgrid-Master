@@ -43,21 +43,54 @@ export function computeMedianBpm(segmentBpms: number[]): number | null {
     : sorted[mid]
 }
 
-export function computeVariance(segmentBpms: number[]): { variancePercent: number; isVariableBpm: boolean } {
+/**
+ * Variable-BPM Erkennung basierend auf Beat-Intervallen (nicht Segmenten).
+ *
+ * Berechnet IQR (Interquartile Range) der Beat-Intervalle relativ zum Median.
+ * Nur echtes variables Tempo (Live-Aufnahmen, Vinyl-Rips) triggert das Flag.
+ * Einzelne schlechte Segmente (Intro, Breakdown) reissen es nicht mehr.
+ *
+ * Fallback auf segmentBpms wenn keine beatTimestamps verfuegbar.
+ */
+export function computeVariance(
+  segmentBpms: number[],
+  beatTimestamps?: number[],
+): { variancePercent: number; isVariableBpm: boolean } {
+  // Primaer: Beat-Intervalle (ganzer Track)
+  if (beatTimestamps && beatTimestamps.length >= 8) {
+    const intervals: number[] = []
+    for (let i = 1; i < beatTimestamps.length; i++) {
+      const iv = beatTimestamps[i] - beatTimestamps[i - 1]
+      if (iv > 0.08 && iv < 3.0) intervals.push(iv)
+    }
+    if (intervals.length >= 4) {
+      const sorted = [...intervals].sort((a, b) => a - b)
+      const q1 = sorted[Math.floor(sorted.length * 0.25)]
+      const q3 = sorted[Math.floor(sorted.length * 0.75)]
+      const mid = Math.floor(sorted.length / 2)
+      const median = sorted.length % 2 === 0
+        ? (sorted[mid - 1] + sorted[mid]) / 2
+        : sorted[mid]
+      const iqrPercent = median > 0 ? ((q3 - q1) / median) * 100 : 0
+      return {
+        variancePercent: iqrPercent,
+        isVariableBpm: iqrPercent > VARIABLE_BPM_VARIANCE_THRESHOLD_PCT,
+      }
+    }
+  }
+
+  // Fallback: Segment-BPMs (alter Algorithmus, nur bei zu wenig Beats)
   if (segmentBpms.length < 3) {
     return { variancePercent: 0, isVariableBpm: false }
   }
-
   const sorted = [...segmentBpms].sort((a, b) => a - b)
   const mid = Math.floor(sorted.length / 2)
   const median = sorted.length % 2 === 0
     ? (sorted[mid - 1] + sorted[mid]) / 2
     : sorted[mid]
-
   const maxDeviation = Math.max(
     ...segmentBpms.map((b) => Math.abs(b - median) / median * 100),
   )
-
   return {
     variancePercent: maxDeviation,
     isVariableBpm: maxDeviation > VARIABLE_BPM_VARIANCE_THRESHOLD_PCT,
@@ -98,7 +131,7 @@ export function verifyBpm(track: Track, rawBeat: RawBeatResult | null): TrackBpm
   }
 
   if (track.bpm == null) {
-    const { variancePercent, isVariableBpm } = computeVariance(rawBeat.segmentBpms)
+    const { variancePercent, isVariableBpm } = computeVariance(rawBeat.segmentBpms, rawBeat.beatTimestamps)
     return {
       ...base,
       overallSeverity: 'warning',
@@ -118,8 +151,8 @@ export function verifyBpm(track: Track, rawBeat: RawBeatResult | null): TrackBpm
   const { adjusted, wasAdjusted } = applyHalfDoubleGuard(Math.round(medianBpm), track.bpm)
   const delta = adjusted - track.bpm
 
-  // Variable BPM check
-  const { variancePercent, isVariableBpm } = computeVariance(rawBeat.segmentBpms)
+  // Variable BPM check (IQR auf Beat-Intervalle)
+  const { variancePercent, isVariableBpm } = computeVariance(rawBeat.segmentBpms, rawBeat.beatTimestamps)
 
   // Severity
   let overallSeverity = bpmSeverity(delta)

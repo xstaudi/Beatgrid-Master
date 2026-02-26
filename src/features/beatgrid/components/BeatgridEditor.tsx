@@ -8,16 +8,22 @@ import { useBeatgridEditor } from '../hooks/useBeatgridEditor'
 import type { GeneratedBeatgrid } from '../services/beatgrid-generation'
 import type { PcmData } from '@/types/audio'
 import type { AudioFileHandle } from '@/lib/audio/file-access'
-import { formatConfidence, confidenceColor } from '@/lib/utils'
-
 interface BeatgridEditorProps {
   trackId: string
   pcmData: PcmData
   audioFileHandle?: AudioFileHandle | null
   generatedGrid: GeneratedBeatgrid
   beatTimestamps: number[]
+  kickOnsets?: number[]
   duration: number
+  showKickOnsets?: boolean
+  showGridLines?: boolean
+  showBeats?: boolean
   onPhaseOffsetChange?: (newOffsetSec: number) => void
+  onViewChange?: (viewStart: number, viewEnd: number) => void
+  controlledViewStart?: number
+  controlledViewEnd?: number
+  visibleBands?: { low: boolean; mid: boolean; high: boolean }
 }
 
 export function BeatgridEditor({
@@ -26,8 +32,16 @@ export function BeatgridEditor({
   audioFileHandle,
   generatedGrid,
   beatTimestamps,
+  kickOnsets,
   duration,
+  showKickOnsets,
+  showGridLines,
+  showBeats,
   onPhaseOffsetChange,
+  onViewChange: onViewChangeProp,
+  controlledViewStart,
+  controlledViewEnd,
+  visibleBands,
 }: BeatgridEditorProps) {
   const {
     phaseOffset,
@@ -44,7 +58,8 @@ export function BeatgridEditor({
 
   const handleViewChange = useCallback((vs: number, ve: number) => {
     setViewCenter((vs + ve) / 2)
-  }, [])
+    onViewChangeProp?.(vs, ve)
+  }, [onViewChangeProp])
 
   const handlePhaseMarkerDrag = useCallback((sec: number) => {
     const value = setPhaseOffset(sec)
@@ -96,12 +111,17 @@ export function BeatgridEditor({
         pcmData={pcmData}
         audioFileHandle={audioFileHandle}
         duration={duration}
-        tempoMarkers={currentMarkers}
+        tempoMarkers={showGridLines !== false ? currentMarkers : undefined}
+        kickOnsets={showKickOnsets !== false ? kickOnsets : undefined}
+        detectedBeats={showBeats ? beatTimestamps : undefined}
         zoomEnabled
         showCenterLine
         phaseMarkerPosition={phaseOffset}
         onPhaseMarkerDrag={handlePhaseMarkerDrag}
         onViewChange={handleViewChange}
+        controlledViewStart={controlledViewStart}
+        controlledViewEnd={controlledViewEnd}
+        visibleBands={visibleBands}
       />
 
       {/* Beat-Shift-Buttons (Rekordbox-Style) */}
@@ -122,24 +142,6 @@ export function BeatgridEditor({
         <Button variant="outline" size="sm" onClick={() => shiftGrid(+4)} title="4 Beats vor">
           ||| ►►
         </Button>
-      </div>
-
-      {/* Info-Karten: Beats Detected / Phase / Confidence */}
-      <div className="grid grid-cols-3 gap-2 text-center text-xs">
-        <div className="rounded border p-2">
-          <div className="text-muted-foreground">Beats Detected</div>
-          <div className="font-mono font-semibold">{beatTimestamps.length}</div>
-        </div>
-        <div className="rounded border p-2">
-          <div className="text-muted-foreground">Phase</div>
-          <div className="font-mono font-semibold">{phaseOffset.toFixed(3)}s</div>
-        </div>
-        <div className="rounded border p-2">
-          <div className="text-muted-foreground">Confidence</div>
-          <div className={`font-mono font-semibold ${confidenceColor(generatedGrid.confidence)}`}>
-            {formatConfidence(generatedGrid.confidence)}
-          </div>
-        </div>
       </div>
 
       {/* Reset / Bestätigen / Überspringen */}

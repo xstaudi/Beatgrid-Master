@@ -22,6 +22,8 @@ interface WaveformPlayerProps {
   clipRegions?: ClipRegion[]
   bpmSegments?: BpmSegment[]
   referenceBpm?: number
+  kickOnsets?: number[]
+  detectedBeats?: number[]
   zoomEnabled?: boolean
   className?: string
   phaseMarkerPosition?: number
@@ -30,6 +32,7 @@ interface WaveformPlayerProps {
   onViewChange?: (viewStart: number, viewEnd: number) => void
   controlledViewStart?: number
   controlledViewEnd?: number
+  visibleBands?: { low: boolean; mid: boolean; high: boolean }
 }
 
 function formatTime(seconds: number): string {
@@ -47,6 +50,8 @@ export function WaveformPlayer({
   clipRegions,
   bpmSegments,
   referenceBpm,
+  kickOnsets,
+  detectedBeats,
   zoomEnabled = false,
   className,
   phaseMarkerPosition,
@@ -55,6 +60,7 @@ export function WaveformPlayer({
   onViewChange,
   controlledViewStart,
   controlledViewEnd,
+  visibleBands,
 }: WaveformPlayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -196,12 +202,16 @@ export function WaveformPlayer({
       clipRegions,
       bpmSegments,
       referenceBpm,
+      kickOnsets,
+      detectedBeats,
       phaseMarkerPosition,
       showCenterLine,
+      visibleBands,
     })
   }, [bandReady, effectiveDuration, currentTime, canPlay,
-    tempoMarkers, beatDriftPoints, clipRegions, bpmSegments, referenceBpm,
-    effectiveViewStart, effectiveViewEnd, phaseMarkerPosition, showCenterLine])
+    tempoMarkers, beatDriftPoints, clipRegions, bpmSegments, referenceBpm, kickOnsets,
+    detectedBeats, effectiveViewStart, effectiveViewEnd, phaseMarkerPosition, showCenterLine,
+    visibleBands])
 
   // Render loop
   useLayoutEffect(() => {

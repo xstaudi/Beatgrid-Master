@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Track } from '@/types/track'
-import type { AnalysisConfig, AnalysisResults, AnyCheckResult, CheckId } from '@/types/analysis'
+import type { AnalysisConfig, AnalysisResults, AnyCheckResult, CheckId, BpmCheckResult, TrackBpmResult } from '@/types/analysis'
 import { checkRequiresAudio } from '@/types/analysis'
 import type { RawBeatResult, RawKeyResult, RawClipResult, RawFingerprintResult } from '@/types/audio'
 import { auditLibrary } from '@/features/metadata'
@@ -24,6 +24,7 @@ interface AnalysisStore {
   generatedBeatgrids: Map<string, GeneratedBeatgrid>
 
   setChecks: (checks: CheckId[]) => void
+  setEnhancedBeat: (enabled: boolean) => void
   runAnalysis: (tracks: Track[]) => void
   storeGeneratedBeatgrid: (trackId: string, grid: GeneratedBeatgrid) => void
   storeRawBeatResult: (trackId: string, result: RawBeatResult) => void
@@ -31,11 +32,12 @@ interface AnalysisStore {
   storeRawClipResult: (trackId: string, result: RawClipResult) => void
   storeFingerprintResult: (trackId: string, result: RawFingerprintResult) => void
   finalizeAudioAnalysis: (tracks: Track[]) => void
+  acceptDetectedBpm: (trackId: string) => void
   clearResults: () => void
 }
 
 export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
-  config: { checks: ['metadata'] },
+  config: { checks: ['metadata'], enhancedBeatDetection: false },
   results: null,
   isRunning: false,
   error: null,
@@ -48,7 +50,13 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
 
   setChecks: (checks) => {
     const needsAudio = checks.some(checkRequiresAudio)
-    set({ config: { checks }, needsAudioDecoding: needsAudio })
+    const { config } = get()
+    set({ config: { ...config, checks }, needsAudioDecoding: needsAudio })
+  },
+
+  setEnhancedBeat: (enabled) => {
+    const { config } = get()
+    set({ config: { ...config, enhancedBeatDetection: enabled } })
   },
 
   runAnalysis: (tracks) => {
@@ -184,6 +192,32 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
         results: existingResults,
       },
       isRunning: false,
+    })
+  },
+
+  acceptDetectedBpm: (trackId) => {
+    const { results } = get()
+    if (!results) return
+
+    const updatedResults = results.results.map((r) => {
+      if (r.type !== 'bpm') return r
+      const bpmResult = r as BpmCheckResult
+      return {
+        ...bpmResult,
+        tracks: bpmResult.tracks.map((t: TrackBpmResult) => {
+          if (t.trackId !== trackId || t.detectedBpm == null) return t
+          return {
+            ...t,
+            storedBpm: t.detectedBpm,
+            bpmDelta: 0,
+            overallSeverity: 'ok' as const,
+          }
+        }),
+      }
+    })
+
+    set({
+      results: { ...results, results: updatedResults },
     })
   },
 

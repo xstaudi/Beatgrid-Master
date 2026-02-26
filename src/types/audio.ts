@@ -40,10 +40,10 @@ export type DecodePhase = 'loading' | 'decoding' | 'processing'
 
 // --- Beat Analysis ---
 
-export type BeatAnalysisPhase = 'loading' | 'analyzing' | 'done'
+export type BeatAnalysisPhase = 'loading' | 'analyzing' | 'fusing' | 'done'
 
 export type BeatRequest =
-  | { type: 'analyze'; trackId: string; samples: Float32Array; sampleRate: number }
+  | { type: 'analyze'; trackId: string; samples: Float32Array; sampleRate: number; stemSource?: 'mix' | 'drums' }
   | { type: 'ping' }
   | { type: 'terminate' }
 
@@ -62,6 +62,12 @@ export interface RawBeatResult {
   sampleRate: number
   duration: number
   kickOnsets?: number[]       // Bass-Band-Onset-Zeitstempel in Sekunden (Kick-Drum-Positionen)
+  onsetStrengthPeaks?: number[]   // Mel-basierte Onset-Peaks
+  multibandKickOnsets?: number[]  // Multi-Band Kick-Onsets (20-250 Hz)
+  fusedBeats?: number[]           // Fused Beat-Positionen (alle Quellen kombiniert)
+  fusionConfidence?: number       // 0-1 Konfidenz der Fusion
+  stemSource?: 'mix' | 'drums'   // Ob Analyse auf Drum-Stem lief
+  energyRating?: number           // 1-10 RMS-basierte Energie-Bewertung
 }
 
 // --- Key Analysis ---
@@ -134,6 +140,21 @@ export interface RawFingerprintResult {
   duration: number
 }
 
+// --- Demucs Stem Separation ---
+
+export type DemucsPhase = 'loading-model' | 'separating'
+
+export type DemucsRequest =
+  | { type: 'separate'; trackId: string; samples: Float32Array; sampleRate: number }
+  | { type: 'ping' }
+  | { type: 'terminate' }
+
+export type DemucsResponse =
+  | { type: 'progress'; trackId: string; phase: DemucsPhase; percent: number }
+  | { type: 'complete'; trackId: string; drumStem: Float32Array; sampleRate: number }
+  | { type: 'error'; trackId: string; message: string }
+  | { type: 'ready' }
+
 // --- Track Processing ---
 
 export type TrackProcessingStatus =
@@ -149,7 +170,7 @@ export interface TrackProcessingState {
   trackId: string
   status: TrackProcessingStatus
   progress: number // 0-100
-  phase: DecodePhase | BeatAnalysisPhase | KeyAnalysisPhase | ClipAnalysisPhase | FingerprintPhase | null
+  phase: DecodePhase | BeatAnalysisPhase | KeyAnalysisPhase | ClipAnalysisPhase | FingerprintPhase | DemucsPhase | null
   error: string | null
 }
 

@@ -1,7 +1,10 @@
 import type { BeatRequest, BeatResponse, BeatAnalysisPhase, RawBeatResult } from '@/types/audio'
 import { getAubio, releaseAubio } from '@/wasm/aubio'
 import { SEGMENT_DURATION_SECONDS } from '@/features/bpm/constants'
-import { computeKickOnsets } from '@/lib/dsp/kick-onset'
+import { computeMultibandKickOnsets } from '@/lib/dsp/multiband-kick'
+import { computeOnsetStrength } from '@/lib/dsp/onset-strength'
+import { fuseBeats } from '@/lib/dsp/beat-fusion'
+import { computeEnergyRating } from '@/features/beatgrid/services/energy-rating'
 
 const HOP_SIZE = 256
 const BUF_SIZE = 1024
@@ -14,7 +17,7 @@ function postProgress(trackId: string, phase: BeatAnalysisPhase, percent: number
   post({ type: 'progress', trackId, phase, percent })
 }
 
-async function analyze(trackId: string, samples: Float32Array, sampleRate: number) {
+async function analyze(trackId: string, samples: Float32Array, sampleRate: number, stemSource: 'mix' | 'drums' = 'mix') {
   try {
     // Phase 1: Load Aubio
     postProgress(trackId, 'loading', 5)
@@ -49,12 +52,12 @@ async function analyze(trackId: string, samples: Float32Array, sampleRate: numbe
       }
 
       if (i % progressInterval === 0) {
-        const percent = 10 + Math.round((i / totalHops) * 80)
+        const percent = 10 + Math.round((i / totalHops) * 48)  // 10-58% fuer Aubio
         postProgress(trackId, 'analyzing', percent)
       }
     }
 
-    postProgress(trackId, 'analyzing', 90)
+    postProgress(trackId, 'analyzing', 58)
 
     // Calculate segment BPMs
     const duration = samples.length / sampleRate
@@ -68,9 +71,25 @@ async function analyze(trackId: string, samples: Float32Array, sampleRate: numbe
       ? confidences.reduce((a, b) => a + b, 0) / confidences.length
       : 0
 
-    // Kick-Drum-Onsets aus Tieffrequenz-Energie (robuster Downbeat-Kandidat)
+    // Phase 3: Onset-Strength + Multi-Band Kick (parallel im selben Worker)
+    postProgress(trackId, 'analyzing', 60)
+    const { peaks: onsetStrengthPeaks } = computeOnsetStrength(samples, sampleRate)
+
+    postProgress(trackId, 'analyzing', 70)
+    const multibandKickOnsets = computeMultibandKickOnsets(samples, sampleRate)
+
+    // Phase 4: Beat Fusion
+    postProgress(trackId, 'fusing', 80)
+    const { fusedBeats, confidence: fusionConfidence } = fuseBeats({
+      aubioBeats: beatTimestamps,
+      onsetPeaks: onsetStrengthPeaks,
+      kickOnsets: multibandKickOnsets,
+      bpm: bpmEstimate,
+    })
+
+    // Phase 5: Energy-Rating + Kick-Onsets
     postProgress(trackId, 'analyzing', 92)
-    const kickOnsets = computeKickOnsets(samples, sampleRate)
+    const energyRating = computeEnergyRating(samples)
 
     const result: RawBeatResult = {
       trackId,
@@ -80,7 +99,13 @@ async function analyze(trackId: string, samples: Float32Array, sampleRate: numbe
       avgConfidence,
       sampleRate,
       duration,
-      kickOnsets,
+      kickOnsets: multibandKickOnsets,
+      onsetStrengthPeaks,
+      multibandKickOnsets,
+      fusedBeats,
+      fusionConfidence,
+      stemSource,
+      energyRating,
     }
 
     postProgress(trackId, 'done', 100)
@@ -120,7 +145,7 @@ self.onmessage = (event: MessageEvent<BeatRequest>) => {
   const msg = event.data
   switch (msg.type) {
     case 'analyze':
-      analyze(msg.trackId, msg.samples, msg.sampleRate)
+      analyze(msg.trackId, msg.samples, msg.sampleRate, msg.stemSource)
       break
     case 'ping':
       post({ type: 'ready' })

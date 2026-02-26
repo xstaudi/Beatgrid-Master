@@ -34,8 +34,11 @@ export interface CanvasRenderOptions {
   clipRegions?: ClipRegion[]
   bpmSegments?: BpmSegment[]
   referenceBpm?: number
+  kickOnsets?: number[]          // Kick-Onset-Zeitpunkte → gruene Marker
+  detectedBeats?: number[]       // Erkannte Beat-Zeitpunkte → tuerkise Marker
   phaseMarkerPosition?: number  // Beat-1 in Sekunden → orange Linie + Dreiecke
   showCenterLine?: boolean       // Roter fixer Strich in Waveform-Mitte
+  visibleBands?: { low: boolean; mid: boolean; high: boolean }
 }
 
 export function renderWaveformCanvas(
@@ -45,7 +48,8 @@ export function renderWaveformCanvas(
   const { width, height, duration, currentTime, canPlay,
     visibleStart, visibleEnd, bandData, fallbackBuckets,
     tempoMarkers, beatDriftPoints, clipRegions,
-    bpmSegments, referenceBpm, phaseMarkerPosition, showCenterLine } = opts
+    bpmSegments, referenceBpm, kickOnsets, detectedBeats,
+    phaseMarkerPosition, showCenterLine, visibleBands } = opts
 
   const centerY = height / 2
   const effectiveDuration = duration > 0 ? duration : 1
@@ -88,9 +92,10 @@ export function renderWaveformCanvas(
       mergedHigh /= count
 
       // Kontrast-verstaerkte Farbmischung (CDJ-3000 Style)
-      const pL = mergedLow * mergedLow * mergedLow
-      const pM = mergedMid * mergedMid * mergedMid
-      const pH = mergedHigh * mergedHigh * mergedHigh
+      const bands = visibleBands ?? { low: true, mid: true, high: true }
+      const pL = bands.low ? mergedLow * mergedLow * mergedLow : 0
+      const pM = bands.mid ? mergedMid * mergedMid * mergedMid : 0
+      const pH = bands.high ? mergedHigh * mergedHigh * mergedHigh : 0
       const total = pL + pM + pH
       let r: number, g: number, b: number
       if (total > 0) {
@@ -137,9 +142,19 @@ export function renderWaveformCanvas(
     renderClipRegions(ctx, clipRegions, width, height, visibleStart, visibleDuration)
   }
 
+  // Detected Beats (tuerkise Marker, VOR Grid damit Grid darueber liegt)
+  if (detectedBeats && detectedBeats.length > 0) {
+    renderDetectedBeats(ctx, detectedBeats, width, height, visibleStart, visibleEnd, visibleDuration)
+  }
+
   // Rekordbox-style Beat Grid
   if (tempoMarkers && tempoMarkers.length > 0) {
     renderBeatGrid(ctx, tempoMarkers, width, height, visibleStart, visibleEnd, visibleDuration)
+  }
+
+  // Kick-Onset Marker (gruen)
+  if (kickOnsets && kickOnsets.length > 0) {
+    renderKickOnsets(ctx, kickOnsets, width, height, visibleStart, visibleEnd, visibleDuration)
   }
 
   // Detected beat drift points
@@ -357,4 +372,40 @@ function renderDriftPoints(
   }
   ctx.stroke()
   ctx.setLineDash([])
+}
+
+function renderDetectedBeats(
+  ctx: CanvasRenderingContext2D,
+  beats: number[],
+  width: number, height: number,
+  visibleStart: number, visibleEnd: number, visibleDuration: number,
+): void {
+  ctx.strokeStyle = 'rgba(80, 200, 200, 0.4)'
+  ctx.lineWidth = 0.5
+  ctx.beginPath()
+  for (const t of beats) {
+    if (t < visibleStart || t > visibleEnd) continue
+    const x = ((t - visibleStart) / visibleDuration) * width
+    ctx.moveTo(x, 0)
+    ctx.lineTo(x, height)
+  }
+  ctx.stroke()
+}
+
+function renderKickOnsets(
+  ctx: CanvasRenderingContext2D,
+  onsets: number[],
+  width: number, height: number,
+  visibleStart: number, visibleEnd: number, visibleDuration: number,
+): void {
+  ctx.strokeStyle = 'rgba(50, 205, 100, 0.45)'
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  for (const t of onsets) {
+    if (t < visibleStart || t > visibleEnd) continue
+    const x = ((t - visibleStart) / visibleDuration) * width
+    ctx.moveTo(x, 0)
+    ctx.lineTo(x, height)
+  }
+  ctx.stroke()
 }

@@ -136,14 +136,23 @@ describe('verifyBpm', () => {
 
   it('variable BPM → variance calculated, error capped to warning', () => {
     const track = makeTrack({ bpm: 128 })
+    // Beat-Timestamps mit stark variablem Tempo (IQR > 15%):
+    // Mix aus 0.47s (~128 BPM) und 0.6s (~100 BPM) Intervallen
+    const beats: number[] = []
+    let t = 0
+    for (let i = 0; i < 40; i++) {
+      beats.push(t)
+      t += i % 2 === 0 ? 0.47 : 0.65  // abwechselnd schnell/langsam
+    }
     const raw = makeRawBeat({
-      bpmEstimate: 130, // Would be error (delta=2)
-      segmentBpms: [125, 128, 135, 128, 122], // High variance
+      bpmEstimate: 130,
+      beatTimestamps: beats,
+      segmentBpms: [125, 128, 135, 128, 122],
     })
     const result = verifyBpm(track, raw)
 
     expect(result.isVariableBpm).toBe(true)
-    expect(result.bpmVariancePercent).toBeGreaterThan(2)
+    expect(result.bpmVariancePercent).toBeGreaterThan(15)
     // Error gets capped to warning for variable BPM
     expect(result.overallSeverity).not.toBe('error')
   })
@@ -176,10 +185,29 @@ describe('computeVariance', () => {
     expect(isVariableBpm).toBe(false)
   })
 
-  it('detects variable BPM with high variance', () => {
-    const { variancePercent, isVariableBpm } = computeVariance([120, 128, 136])
-    expect(variancePercent).toBeGreaterThan(2)
+  it('detects variable BPM with high IQR on beat intervals', () => {
+    // Beat-Timestamps mit stark variablem Tempo
+    const beats: number[] = []
+    let t = 0
+    for (let i = 0; i < 40; i++) {
+      beats.push(t)
+      t += i % 2 === 0 ? 0.47 : 0.65
+    }
+    const { variancePercent, isVariableBpm } = computeVariance([120, 128, 136], beats)
+    expect(variancePercent).toBeGreaterThan(15)
     expect(isVariableBpm).toBe(true)
+  })
+
+  it('does not flag consistent electronic track as variable', () => {
+    // 128 BPM = 0.46875s Intervall mit leichtem Jitter
+    const beats: number[] = []
+    let t = 0
+    for (let i = 0; i < 100; i++) {
+      beats.push(t)
+      t += 0.46875 + (Math.random() - 0.5) * 0.02  // ±10ms Jitter
+    }
+    const { isVariableBpm } = computeVariance([128, 128, 128], beats)
+    expect(isVariableBpm).toBe(false)
   })
 
   it('returns not variable for < 3 segments', () => {

@@ -1,19 +1,17 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { SeverityBadge } from '../SeverityBadge'
-import { InfoItem } from './InfoItem'
 import { BeatgridEditor } from '@/features/beatgrid/components/BeatgridEditor'
 import { WaveformPlayer } from '@/features/waveform'
+import { WaveformOverlayBar, type OverlayId, type OverlayState } from '@/features/beatgrid/components/WaveformOverlayBar'
+import { GridStatStrip } from '@/features/beatgrid/components/GridStatStrip'
 import { computeLivePrecision } from '@/features/beatgrid/services/beatgrid-phase'
-import type { TrackBeatgridResult } from '@/types/analysis'
+import type { TrackBeatgridResult, TrackBpmResult } from '@/types/analysis'
 import type { PcmData } from '@/types/audio'
 import type { AudioFileHandle } from '@/lib/audio/file-access'
 import type { TempoMarker } from '@/types/track'
 import type { GeneratedBeatgrid } from '@/features/beatgrid'
-import { formatConfidence, confidenceColor } from '@/lib/utils'
 
 interface BeatgridTabProps {
   result: TrackBeatgridResult
@@ -24,6 +22,10 @@ interface BeatgridTabProps {
   trackId: string
   generatedGrid?: GeneratedBeatgrid | null
   rawBeatTimestamps?: number[]
+  kickOnsets?: number[]
+  trackBpmResult?: TrackBpmResult
+  energyRating?: number
+  onAcceptBpm?: () => void
 }
 
 function WaveformLabel({ children }: { children: React.ReactNode }) {
@@ -34,101 +36,14 @@ function WaveformLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-function GridPrecisionBar({ avgDriftMs, bpm }: { avgDriftMs: number; bpm: number }) {
-  const beatIntervalMs = bpm > 0 ? 60000 / bpm : 468
-  const beatPct = (avgDriftMs / beatIntervalMs) * 100
-  // Bar scale: 0–50ms (> 50ms = vollstaendig ausgefuellt)
-  const barPct = Math.min(100, (avgDriftMs / 50) * 100)
-  const severity = avgDriftMs < 10 ? 'ok' : avgDriftMs < 30 ? 'warning' : 'error'
-  const barColor = severity === 'ok' ? 'bg-chart-2' : severity === 'warning' ? 'bg-chart-5' : 'bg-destructive'
-  const textColor = severity === 'ok' ? 'text-chart-2' : severity === 'warning' ? 'text-chart-5' : 'text-destructive'
-
-  return (
-    <div className="space-y-1.5 pt-1">
-      <div className="flex items-center justify-between text-xs">
-        <span className="text-muted-foreground">Grid Precision</span>
-        <span className={`font-mono font-medium tabular-nums ${textColor}`}>
-          {avgDriftMs.toFixed(1)}ms · {beatPct.toFixed(0)}% beat
-        </span>
-      </div>
-      <div className="relative h-2 rounded-full bg-muted overflow-hidden">
-        {/* Zonen: gruen (0-20%), gelb (20-60%), rot (60-100%) */}
-        <div className="absolute inset-y-0 left-0 w-[20%] bg-chart-2/15" />
-        <div className="absolute inset-y-0 left-[20%] w-[40%] bg-chart-5/10" />
-        <div className="absolute inset-y-0 left-[60%] right-0 bg-destructive/10" />
-        {/* Fuellbalken */}
-        <div
-          className={`absolute inset-y-0 left-0 rounded-full transition-all duration-300 opacity-85 ${barColor}`}
-          style={{ width: `${barPct}%` }}
-        />
-      </div>
-      <div className="flex justify-between text-[10px] text-muted-foreground">
-        <span>0ms</span>
-        <span>10ms</span>
-        <span>30ms</span>
-        <span>50ms+</span>
-      </div>
-    </div>
-  )
-}
-
 interface LiveStats {
   avgDriftMs: number
   offBeatMs: number | undefined
 }
 
-function DriftStats({ result, bpm, showDriftPoints, onToggleDrift, liveStats }: {
-  result: TrackBeatgridResult
-  bpm: number
-  showDriftPoints: boolean
-  onToggleDrift: () => void
-  liveStats?: LiveStats
-}) {
-  const avgDriftMs = liveStats?.avgDriftMs ?? result.avgDriftMs
-  const offBeatMs = liveStats !== undefined ? liveStats.offBeatMs : result.offBeatMs
-
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <InfoItem label="Avg Drift" value={`${avgDriftMs.toFixed(1)}ms`} />
-        <InfoItem label="Max Drift" value={`${result.maxDriftMs.toFixed(1)}ms`} />
-        <InfoItem label="Confidence" value={formatConfidence(result.confidence)} className={confidenceColor(result.confidence)} />
-        <InfoItem label="Beats Analyzed" value={String(result.beatsAnalyzed)} />
-      </div>
-      {(result.beatsMatched > 0 || liveStats !== undefined) && (
-        <GridPrecisionBar avgDriftMs={avgDriftMs} bpm={bpm} />
-      )}
-      {offBeatMs !== undefined && (
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">Phase Offset</span>
-          <span className={Math.abs(offBeatMs) > 10 ? 'font-mono text-chart-5' : 'font-mono text-muted-foreground'}>
-            {offBeatMs > 0 ? '+' : ''}{offBeatMs.toFixed(1)}ms
-            {' '}({offBeatMs > 0 ? 'zu früh' : 'zu spät'})
-          </span>
-        </div>
-      )}
-      {result.outOfPhaseBeats !== undefined && (
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">Bar Alignment</span>
-          {result.outOfPhaseBeats === 0
-            ? <span className="text-chart-2 font-medium">In Phase</span>
-            : <span className="text-chart-5 font-medium">Beat 1 → Beat 2</span>
-          }
-        </div>
-      )}
-      {result.driftPoints.length > 0 && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-xs text-muted-foreground"
-          onClick={onToggleDrift}
-        >
-          {showDriftPoints ? <EyeOff className="h-3.5 w-3.5 mr-1.5" /> : <Eye className="h-3.5 w-3.5 mr-1.5" />}
-          Erkannte Beats {showDriftPoints ? 'ausblenden' : 'einblenden'}
-        </Button>
-      )}
-    </div>
-  )
+const defaultOverlays: OverlayState = {
+  grid: true, kicks: true, beats: false,
+  low: true, mid: true, high: true,
 }
 
 export function BeatgridTab({
@@ -140,12 +55,20 @@ export function BeatgridTab({
   trackId,
   generatedGrid,
   rawBeatTimestamps,
+  kickOnsets,
+  trackBpmResult,
+  energyRating,
+  onAcceptBpm,
 }: BeatgridTabProps) {
   const [syncView, setSyncView] = useState<{ start: number; end: number } | null>(null)
-  const [showDriftPoints, setShowDriftPoints] = useState(false)
+  const [overlays, setOverlays] = useState<OverlayState>(defaultOverlays)
   const [livePhaseOffset, setLivePhaseOffset] = useState<number | null>(
     generatedGrid ? generatedGrid.phaseOffsetSec : null,
   )
+
+  const handleToggleOverlay = useCallback((id: OverlayId) => {
+    setOverlays((prev) => ({ ...prev, [id]: !prev[id] }))
+  }, [])
 
   const handlePhaseOffsetChange = useCallback((offset: number) => {
     setLivePhaseOffset(offset)
@@ -155,6 +78,10 @@ export function BeatgridTab({
     if (livePhaseOffset === null || !rawBeatTimestamps?.length || !generatedGrid) return undefined
     return computeLivePrecision(rawBeatTimestamps, livePhaseOffset, generatedGrid.medianBpm, duration)
   }, [livePhaseOffset, rawBeatTimestamps, generatedGrid, duration])
+
+  const visibleBands = useMemo(() => ({
+    low: overlays.low, mid: overlays.mid, high: overlays.high,
+  }), [overlays.low, overlays.mid, overlays.high])
 
   if (result.skipReason) {
     const skipLabels: Record<string, string> = {
@@ -174,6 +101,23 @@ export function BeatgridTab({
   const hasGeneratedGrid = generatedGrid != null && generatedGrid.method !== 'skipped' && pcmData != null
   const bpm = tempoMarkers[0]?.bpm ?? generatedGrid?.medianBpm ?? 128
 
+  // Kick-Onsets filtern: Sub-Beat-Intervalle entfernen fuer saubere Anzeige
+  const filteredKicks = useMemo(() => {
+    if (!kickOnsets?.length || bpm <= 0) return kickOnsets
+    const minInterval = (60 / bpm) * 0.7
+    const filtered = [kickOnsets[0]]
+    for (let i = 1; i < kickOnsets.length; i++) {
+      if (kickOnsets[i] - filtered[filtered.length - 1] >= minInterval) {
+        filtered.push(kickOnsets[i])
+      }
+    }
+    return filtered
+  }, [kickOnsets, bpm])
+
+  const hasKickOnsets = (filteredKicks?.length ?? 0) > 0
+  const hasDriftPoints = result.driftPoints.length > 0
+  const hasDetectedBeats = (rawBeatTimestamps?.length ?? 0) > 0
+
   // Case 1: Kein gespeichertes Grid → nur BeatgridEditor (muss freigegeben werden)
   if (!hasStoredGrid && hasGeneratedGrid) {
     return (
@@ -185,7 +129,19 @@ export function BeatgridTab({
           audioFileHandle={audioFileHandle}
           generatedGrid={generatedGrid!}
           beatTimestamps={rawBeatTimestamps ?? []}
+          kickOnsets={filteredKicks}
+          showKickOnsets={overlays.kicks}
+          showGridLines={overlays.grid}
+          showBeats={overlays.beats}
           duration={duration}
+          visibleBands={visibleBands}
+        />
+        <WaveformOverlayBar
+          overlays={overlays}
+          onToggle={handleToggleOverlay}
+          hasKickOnsets={hasKickOnsets}
+          hasDriftPoints={hasDriftPoints}
+          hasDetectedBeats={hasDetectedBeats}
         />
         {generatedGrid!.isVariableBpm && (
           <div className="flex items-center gap-2">
@@ -207,10 +163,14 @@ export function BeatgridTab({
             pcmData={pcmData}
             audioFileHandle={audioFileHandle}
             duration={duration}
-            tempoMarkers={tempoMarkers}
-            beatDriftPoints={showDriftPoints ? result.driftPoints : undefined}
+            tempoMarkers={overlays.grid ? tempoMarkers : undefined}
+            beatDriftPoints={overlays.beats ? result.driftPoints : undefined}
+            kickOnsets={overlays.kicks ? filteredKicks : undefined}
+            detectedBeats={overlays.beats ? rawBeatTimestamps : undefined}
             zoomEnabled
-            onViewChange={(vs, ve) => setSyncView({ start: vs, end: ve })}
+            controlledViewStart={syncView?.start}
+            controlledViewEnd={syncView?.end}
+            visibleBands={visibleBands}
           />
         </div>
         <div>
@@ -221,16 +181,31 @@ export function BeatgridTab({
             audioFileHandle={audioFileHandle}
             generatedGrid={generatedGrid!}
             beatTimestamps={rawBeatTimestamps ?? []}
+            kickOnsets={filteredKicks}
+            showKickOnsets={overlays.kicks}
+            showGridLines={overlays.grid}
+            showBeats={overlays.beats}
             duration={duration}
             onPhaseOffsetChange={handlePhaseOffsetChange}
+            onViewChange={(vs, ve) => setSyncView({ start: vs, end: ve })}
+            visibleBands={visibleBands}
           />
         </div>
-        <DriftStats
+        <WaveformOverlayBar
+          overlays={overlays}
+          onToggle={handleToggleOverlay}
+          hasKickOnsets={hasKickOnsets}
+          hasDriftPoints={hasDriftPoints}
+          hasDetectedBeats={hasDetectedBeats}
+        />
+        <GridStatStrip
           result={result}
           bpm={bpm}
-          showDriftPoints={showDriftPoints}
-          onToggleDrift={() => setShowDriftPoints((s) => !s)}
-          liveStats={liveStats}
+          liveAvgDriftMs={liveStats?.avgDriftMs}
+          liveOffBeatMs={liveStats !== undefined ? liveStats.offBeatMs : undefined}
+          trackBpmResult={trackBpmResult}
+          energyRating={energyRating}
+          onAcceptBpm={onAcceptBpm}
         />
         {generatedGrid!.isVariableBpm && (
           <div className="flex items-center gap-2">
@@ -256,6 +231,7 @@ export function BeatgridTab({
             audioFileHandle={audioFileHandle}
             duration={duration}
             zoomEnabled
+            visibleBands={visibleBands}
           />
         )}
         <p className="text-sm text-muted-foreground">{reason}</p>
@@ -263,23 +239,34 @@ export function BeatgridTab({
     )
   }
 
-  // Case 4: Nur gespeichertes Grid, keine Verbesserung → Waveform + Drift-Stats
+  // Case 4: Nur gespeichertes Grid, keine Verbesserung → Waveform + Stats
   return (
     <div className="space-y-4 pr-4">
       <WaveformPlayer
         pcmData={pcmData}
         audioFileHandle={audioFileHandle}
         duration={duration}
-        tempoMarkers={tempoMarkers}
-        beatDriftPoints={showDriftPoints ? result.driftPoints : undefined}
+        tempoMarkers={overlays.grid ? tempoMarkers : undefined}
+        beatDriftPoints={overlays.beats ? result.driftPoints : undefined}
+        kickOnsets={overlays.kicks ? filteredKicks : undefined}
+        detectedBeats={overlays.beats ? rawBeatTimestamps : undefined}
         zoomEnabled
         onViewChange={(vs, ve) => setSyncView({ start: vs, end: ve })}
+        visibleBands={visibleBands}
       />
-      <DriftStats
+      <WaveformOverlayBar
+        overlays={overlays}
+        onToggle={handleToggleOverlay}
+        hasKickOnsets={hasKickOnsets}
+        hasDriftPoints={hasDriftPoints}
+        hasDetectedBeats={hasDetectedBeats}
+      />
+      <GridStatStrip
         result={result}
         bpm={bpm}
-        showDriftPoints={showDriftPoints}
-        onToggleDrift={() => setShowDriftPoints((s) => !s)}
+        trackBpmResult={trackBpmResult}
+        energyRating={energyRating}
+        onAcceptBpm={onAcceptBpm}
       />
       {result.isVariableBpm && (
         <div className="flex items-center gap-2">

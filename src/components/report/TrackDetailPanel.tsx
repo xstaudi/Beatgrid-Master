@@ -37,6 +37,7 @@ export function TrackDetailPanel({ trackId, onClose }: TrackDetailPanelProps) {
   const results = useAnalysisStore((s) => s.results)
   const generatedBeatgrids = useAnalysisStore((s) => s.generatedBeatgrids)
   const rawBeatResults = useAnalysisStore((s) => s.rawBeatResults)
+  const acceptDetectedBpm = useAnalysisStore((s) => s.acceptDetectedBpm)
   const track = useTrackStore((s) => s.tracks.find((t) => t.id === trackId))
   const pcmCache = useProcessingStore((s) => s.pcmCache)
   const audioFileHandles = useProcessingStore((s) => s.audioFileHandles)
@@ -156,6 +157,10 @@ export function TrackDetailPanel({ trackId, onClose }: TrackDetailPanelProps) {
                   trackId={trackId}
                   generatedGrid={generatedGrid}
                   rawBeatTimestamps={rawBeatResults.get(trackId)?.beatTimestamps}
+                  kickOnsets={rawBeatResults.get(trackId)?.kickOnsets}
+                  trackBpmResult={trackBpm}
+                  energyRating={rawBeatResults.get(trackId)?.energyRating}
+                  onAcceptBpm={() => acceptDetectedBpm(trackId)}
                 />
               </TabsContent>
             )}
