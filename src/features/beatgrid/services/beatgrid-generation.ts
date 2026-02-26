@@ -19,6 +19,9 @@ export interface GeneratedBeatgrid {
   skipReason?: 'too-few-beats' | 'variable-bpm' | 'has-existing-grid'
 }
 
+/**
+ * BPM aus Beat-Intervallen: Median der Intervalle → robust gegen Outlier.
+ */
 function computeMedianBpm(beatTimestamps: number[]): number {
   if (beatTimestamps.length < 2) return 0
 
@@ -39,6 +42,59 @@ function computeMedianBpm(beatTimestamps: number[]): number {
     : sorted[mid]
 
   return 60 / medianInterval
+}
+
+/**
+ * Least-Squares BPM-Refinement: Verfeinert den initialen BPM-Schaetzer
+ * indem jeder erkannte Beat seinem naechsten Grid-Index zugeordnet und
+ * per linearer Regression der optimale Intervall bestimmt wird.
+ *
+ * Eliminiert den akkumulierten Drift den Median-Intervall hinterlaesst.
+ */
+function refineBpmLeastSquares(
+  beatTimestamps: number[],
+  initialBpm: number,
+  phaseOffsetSec: number,
+): number {
+  if (beatTimestamps.length < 4 || initialBpm <= 0) return initialBpm
+
+  const intervalSec = 60 / initialBpm
+
+  // Jeden Beat seinem naechsten Grid-Index zuordnen
+  const pairs: { idx: number; time: number }[] = []
+  for (const t of beatTimestamps) {
+    const idx = Math.round((t - phaseOffsetSec) / intervalSec)
+    if (idx >= 0) {
+      pairs.push({ idx, time: t })
+    }
+  }
+
+  if (pairs.length < 4) return initialBpm
+
+  // Lineare Regression: time = phase + idx * interval
+  // → interval = sum((idx - mean_idx) * (time - mean_time)) / sum((idx - mean_idx)²)
+  let sumIdx = 0, sumTime = 0
+  for (const p of pairs) {
+    sumIdx += p.idx
+    sumTime += p.time
+  }
+  const meanIdx = sumIdx / pairs.length
+  const meanTime = sumTime / pairs.length
+
+  let num = 0, den = 0
+  for (const p of pairs) {
+    const dIdx = p.idx - meanIdx
+    const dTime = p.time - meanTime
+    num += dIdx * dTime
+    den += dIdx * dIdx
+  }
+
+  if (den === 0) return initialBpm
+
+  const refinedInterval = num / den
+  if (refinedInterval <= 0.08 || refinedInterval > 3.0) return initialBpm
+
+  return 60 / refinedInterval
 }
 
 /**
@@ -142,33 +198,24 @@ export function generateBeatgrid(
   // Variable-BPM Check (IQR auf Beat-Intervalle, nur echtes variables Tempo)
   const { isVariableBpm } = computeVariance(rawBeat.segmentBpms, rawBeat.beatTimestamps)
 
-  // BPM: DJ-BPM validieren wenn vorhanden, sonst aus Kicks/Beats berechnen
+  // BPM: IMMER aus erkannten Beats berechnen (volle Praezision, kein Runden).
+  // Half/Double-Guard nur zur Oktavkorrektur, nicht zum Uebernehmen des gespeicherten Werts.
   const existingBpm = existingMarkers.length > 0 ? existingMarkers[0].bpm : null
-  let roundedBpm: number
-  if (existingBpm != null && existingBpm > 0) {
-    // Validieren + Half/Double-Guard statt blind uebernehmen
-    const detectedBpm = computeMedianBpm(rawBeat.beatTimestamps)
-    if (detectedBpm > 0) {
-      const { adjusted } = applyHalfDoubleGuard(detectedBpm, existingBpm)
-      // Nur existierenden uebernehmen wenn Abweichung < 2%
-      const deviation = Math.abs(adjusted - existingBpm) / existingBpm
-      roundedBpm = deviation < 0.02 ? existingBpm : adjusted
-    } else {
-      roundedBpm = existingBpm
-    }
-  } else {
-    const MIN_KICKS_FOR_BPM = 16
-    let medianBpm = (rawBeat.kickOnsets?.length ?? 0) >= MIN_KICKS_FOR_BPM
-      ? computeMedianBpm(rawBeat.kickOnsets!)
-      : computeMedianBpm(rawBeat.beatTimestamps)
-    if (medianBpm === 0) {
-      return { ...skippedBase, skipReason: 'too-few-beats' }
-    }
-    const { adjusted } = applyHalfDoubleGuard(medianBpm, rawBeat.bpmEstimate)
-    medianBpm = adjusted
-    roundedBpm = Math.round(medianBpm * 10) / 10
+  const MIN_KICKS_FOR_BPM = 16
+  let detectedBpm = (rawBeat.kickOnsets?.length ?? 0) >= MIN_KICKS_FOR_BPM
+    ? computeMedianBpm(rawBeat.kickOnsets!)
+    : computeMedianBpm(rawBeat.beatTimestamps)
+
+  if (detectedBpm === 0) {
+    return { ...skippedBase, skipReason: 'too-few-beats' }
   }
-  const intervalSec = 60 / roundedBpm
+
+  // Half/Double-Guard: Referenz ist existingBpm (wenn vorhanden) oder Aubio-Estimate
+  const reference = existingBpm != null && existingBpm > 0 ? existingBpm : rawBeat.bpmEstimate
+  const { adjusted } = applyHalfDoubleGuard(detectedBpm, reference)
+  detectedBpm = adjusted
+
+  const intervalSec = 60 / detectedBpm
 
   // Kick-Onsets filtern: Sub-Beat-Intervalle entfernen (Ghost-Kicks, Hi-Hat-Bleed)
   const MIN_KICK_ONSETS = 4
@@ -183,37 +230,56 @@ export function generateBeatgrid(
     ? computeOptimalPhase(filteredKicks, intervalSec)
     : computeOptimalPhase(rawBeat.beatTimestamps, intervalSec)
 
+  // Least-Squares BPM-Refinement: Minimiert akkumulierten Drift ueber gesamten Track
+  const primaryBeats = useKicks ? filteredKicks : rawBeat.beatTimestamps
+  const refinedBpm = refineBpmLeastSquares(primaryBeats, detectedBpm, phaseOffsetSec)
+
+  // Sanity-Check: Refinement nur akzeptieren wenn Abweichung < 1% (kein Sprung)
+  const refinedDeviation = Math.abs(refinedBpm - detectedBpm) / detectedBpm
+  const finalBpm = refinedDeviation < 0.01 ? refinedBpm : detectedBpm
+
+  // Phase nach BPM-Refinement nochmal berechnen (neues Intervall → neue Phase)
+  const finalInterval = 60 / finalBpm
+  if (Math.abs(finalBpm - detectedBpm) > 0.001) {
+    phaseOffsetSec = useKicks
+      ? computeOptimalPhase(filteredKicks, finalInterval)
+      : computeOptimalPhase(rawBeat.beatTimestamps, finalInterval)
+  }
+
   // Downbeat-Alignment: Drop-basiert (bevorzugt) oder Kick-Histogram (Fallback)
   if (useKicks) {
-    const drop = detectDrop(filteredKicks, roundedBpm, rawBeat.duration)
+    const drop = detectDrop(filteredKicks, finalBpm, rawBeat.duration)
     const anchorKick = drop.dropKickSec
 
     if (anchorKick !== null) {
       // Grid so rotieren dass anchorKick auf Beat 1 (Downbeat) faellt
-      const beatIdx = Math.round((anchorKick - phaseOffsetSec) / intervalSec)
+      const beatIdx = Math.round((anchorKick - phaseOffsetSec) / finalInterval)
       const barShift = ((beatIdx % 4) + 4) % 4
       if (barShift !== 0) {
-        phaseOffsetSec = (phaseOffsetSec + barShift * intervalSec) % (intervalSec * 4)
+        phaseOffsetSec = (phaseOffsetSec + barShift * finalInterval) % (finalInterval * 4)
       }
     } else {
       // Kein Drop: Kick-Histogram fuer Downbeat (robuster als einzelner firstKick)
       const barCounts = [0, 0, 0, 0]
       for (const kick of filteredKicks) {
-        const beatIdx = Math.round((kick - phaseOffsetSec) / intervalSec)
+        const beatIdx = Math.round((kick - phaseOffsetSec) / finalInterval)
         const barPos = ((beatIdx % 4) + 4) % 4
         barCounts[barPos]++
       }
       const barShift = barCounts.indexOf(Math.max(...barCounts))
       if (barShift !== 0) {
-        phaseOffsetSec = (phaseOffsetSec + barShift * intervalSec) % (intervalSec * 4)
+        phaseOffsetSec = (phaseOffsetSec + barShift * finalInterval) % (finalInterval * 4)
       }
     }
   }
 
+  // BPM fuer Anzeige auf 2 Dezimalen runden, intern volle Praezision
+  const displayBpm = Math.round(finalBpm * 100) / 100
+
   // Static Grid erzeugen
   const marker: TempoMarker = {
     position: phaseOffsetSec,
-    bpm: roundedBpm,
+    bpm: displayBpm,
     meter: '4/4',
     beat: 1,
   }
@@ -228,7 +294,7 @@ export function generateBeatgrid(
       if (dist < bestDist) bestDist = dist
       if (expected > detected + bestDist / 1000) break
     }
-    if (bestDist > adaptiveTolerancesMs(roundedBpm).warningMs) errorCount++
+    if (bestDist > adaptiveTolerancesMs(displayBpm).warningMs) errorCount++
   }
 
   const errorRatio = rawBeat.beatTimestamps.length > 0
@@ -241,7 +307,7 @@ export function generateBeatgrid(
     method: 'static',
     isVariableBpm,
     confidence,
-    medianBpm: roundedBpm,
+    medianBpm: displayBpm,
     phaseOffsetSec,
   }
 }

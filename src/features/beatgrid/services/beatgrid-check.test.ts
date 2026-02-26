@@ -95,12 +95,12 @@ describe('checkBeatgrid', () => {
     expect(result.overallSeverity).toBe('warning')
   })
 
-  it('20ms drift → warning severity (adaptive: 128 BPM → okMs=10, warningMs=35)', () => {
+  it('15ms drift → warning severity (adaptive: 128 BPM → okMs=8, warningMs=20)', () => {
     const track = makeTrack()
     const interval = 60 / 128
     const beats: number[] = []
     for (let t = 0; t < 180; t += interval) {
-      beats.push(t + 0.020) // 20ms drift
+      beats.push(t + 0.015) // 15ms drift (> 8ms ok, < 20ms warning)
     }
     const raw = makeRawBeat({ beatTimestamps: beats })
     const result = checkBeatgrid(track, raw)
